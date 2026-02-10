@@ -17,6 +17,7 @@ export interface Task {
   path: string;
   status: string;
   useWorktree: boolean;
+  autoApprove: boolean;
   archivedAt: string | null;
   createdAt: string;
   updatedAt: string;

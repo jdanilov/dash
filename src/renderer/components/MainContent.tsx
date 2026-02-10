@@ -70,6 +70,7 @@ export function MainContent({ activeTask, activeProject }: MainContentProps) {
           key={activeTask.id}
           id={activeTask.id}
           cwd={activeTask.path}
+          autoApprove={activeTask.autoApprove}
         />
       </div>
     </div>

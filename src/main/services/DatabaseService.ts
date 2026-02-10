@@ -88,6 +88,7 @@ export class DatabaseService {
         path: data.path,
         status: data.status ?? 'idle',
         useWorktree: data.useWorktree ?? true,
+        autoApprove: data.autoApprove ?? false,
         createdAt: now,
         updatedAt: now,
       })
@@ -197,6 +198,7 @@ export class DatabaseService {
       path: row.path,
       status: row.status,
       useWorktree: row.useWorktree ?? true,
+      autoApprove: row.autoApprove ?? false,
       archivedAt: row.archivedAt,
       createdAt: row.createdAt ?? '',
       updatedAt: row.updatedAt ?? '',

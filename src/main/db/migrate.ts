@@ -34,6 +34,7 @@ export function runMigrations(): void {
       path TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'idle',
       use_worktree INTEGER DEFAULT 1,
+      auto_approve INTEGER DEFAULT 0,
       archived_at TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -56,6 +57,9 @@ export function runMigrations(): void {
   `);
 
   rawDb.exec(`CREATE INDEX IF NOT EXISTS idx_conversations_task_id ON conversations(task_id);`);
+
+  // Migrations for existing databases
+  try { rawDb.exec(`ALTER TABLE tasks ADD COLUMN auto_approve INTEGER DEFAULT 0`); } catch { /* already exists */ }
 
   rawDb.pragma('foreign_keys = ON');
 }

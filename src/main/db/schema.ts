@@ -30,6 +30,7 @@ export const tasks = sqliteTable(
     path: text('path').notNull(),
     status: text('status').notNull().default('idle'),
     useWorktree: integer('use_worktree', { mode: 'boolean' }).default(true),
+    autoApprove: integer('auto_approve', { mode: 'boolean' }).default(false),
     archivedAt: text('archived_at'),
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
     updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),

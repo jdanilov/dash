@@ -1,19 +1,20 @@
 import React, { useState } from 'react';
-import { X, GitBranch } from 'lucide-react';
+import { X, GitBranch, Zap } from 'lucide-react';
 
 interface TaskModalProps {
   onClose: () => void;
-  onCreate: (name: string, useWorktree: boolean) => void;
+  onCreate: (name: string, useWorktree: boolean, autoApprove: boolean) => void;
 }
 
 export function TaskModal({ onClose, onCreate }: TaskModalProps) {
   const [name, setName] = useState('');
   const [useWorktree, setUseWorktree] = useState(true);
+  const [autoApprove, setAutoApprove] = useState(false);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (name.trim()) {
-      onCreate(name.trim(), useWorktree);
+      onCreate(name.trim(), useWorktree, autoApprove);
       onClose();
     }
   }
@@ -55,7 +56,7 @@ export function TaskModal({ onClose, onCreate }: TaskModalProps) {
           </div>
 
           {/* Worktree toggle */}
-          <div className="mb-6">
+          <div className="mb-4">
             <label className="flex items-center gap-3 cursor-pointer group">
               <div className="relative">
                 <input
@@ -71,6 +72,27 @@ export function TaskModal({ onClose, onCreate }: TaskModalProps) {
                 <GitBranch size={13} className="text-muted-foreground/40" strokeWidth={1.8} />
                 <span className="text-[13px] text-foreground/80">Git worktree</span>
                 <span className="text-[11px] text-muted-foreground/40">isolated branch</span>
+              </div>
+            </label>
+          </div>
+
+          {/* Yolo mode toggle */}
+          <div className="mb-6">
+            <label className="flex items-center gap-3 cursor-pointer group">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={autoApprove}
+                  onChange={(e) => setAutoApprove(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-8 h-[18px] rounded-full bg-accent peer-checked:bg-primary/80 transition-colors duration-200" />
+                <div className="absolute top-[3px] left-[3px] w-3 h-3 rounded-full bg-muted-foreground/40 peer-checked:bg-primary-foreground peer-checked:translate-x-[14px] transition-all duration-200" />
+              </div>
+              <div className="flex items-center gap-2">
+                <Zap size={13} className="text-muted-foreground/40" strokeWidth={1.8} />
+                <span className="text-[13px] text-foreground/80">Yolo mode</span>
+                <span className="text-[11px] text-muted-foreground/40">skip permissions</span>
               </div>
             </label>
           </div>
