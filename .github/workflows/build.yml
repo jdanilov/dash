@@ -8,10 +8,15 @@ on:
 
 jobs:
   build-mac:
-    runs-on: macos-latest
     strategy:
       matrix:
-        arch: [x64, arm64]
+        include:
+          - arch: x64
+            runner: macos-13      # Intel runner
+          - arch: arm64
+            runner: macos-latest  # Apple Silicon runner
+
+    runs-on: ${{ matrix.runner }}
 
     steps:
       - uses: actions/checkout@v4
@@ -32,7 +37,7 @@ jobs:
         run: pnpm build
 
       - name: Package
-        run: pnpm exec electron-builder --mac --${{ matrix.arch }}
+        run: pnpm exec electron-builder --mac --${{ matrix.arch }} --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
