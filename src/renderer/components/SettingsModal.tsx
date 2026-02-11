@@ -1,13 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Check, AlertCircle, Sun, Moon, Terminal, RotateCcw } from 'lucide-react';
 import type { KeyBindingMap, KeyBinding } from '../keybindings';
-import { getBindingKeys, bindingFromEvent, DEFAULT_KEYBINDINGS, groupByCategory } from '../keybindings';
+import {
+  getBindingKeys,
+  bindingFromEvent,
+  DEFAULT_KEYBINDINGS,
+  groupByCategory,
+} from '../keybindings';
+import { NOTIFICATION_SOUNDS, SOUND_LABELS } from '../sounds';
+import type { NotificationSound } from '../sounds';
 
 interface SettingsModalProps {
   theme: 'light' | 'dark';
   onThemeChange: (theme: 'light' | 'dark') => void;
   diffContextLines: number | null;
   onDiffContextLinesChange: (value: number | null) => void;
+  notificationSound: NotificationSound;
+  onNotificationSoundChange: (value: NotificationSound) => void;
   keybindings: KeyBindingMap;
   onKeybindingsChange: (bindings: KeyBindingMap) => void;
   onClose: () => void;
@@ -75,9 +84,7 @@ function KeyRecorder({
       ref={ref}
       onClick={() => setRecording(true)}
       className={`group/key flex items-center gap-1 px-2 py-1.5 rounded-lg transition-all duration-150 ${
-        recording
-          ? 'bg-primary/10 ring-1 ring-primary/40'
-          : 'hover:bg-accent/50'
+        recording ? 'bg-primary/10 ring-1 ring-primary/40' : 'hover:bg-accent/50'
       }`}
     >
       {recording ? (
@@ -96,6 +103,8 @@ export function SettingsModal({
   onThemeChange,
   diffContextLines,
   onDiffContextLinesChange,
+  notificationSound,
+  onNotificationSoundChange,
   keybindings,
   onKeybindingsChange,
   onClose,
@@ -132,7 +141,12 @@ export function SettingsModal({
   function isModified(binding: KeyBinding): boolean {
     const def = DEFAULT_KEYBINDINGS[binding.id];
     if (!def) return false;
-    return binding.mod !== def.mod || binding.shift !== def.shift || binding.alt !== def.alt || binding.key !== def.key;
+    return (
+      binding.mod !== def.mod ||
+      binding.shift !== def.shift ||
+      binding.alt !== def.alt ||
+      binding.key !== def.key
+    );
   }
 
   const groups = groupByCategory(keybindings);
@@ -147,7 +161,10 @@ export function SettingsModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 h-12 border-b border-border/60 flex-shrink-0" style={{ background: 'hsl(var(--surface-2))' }}>
+        <div
+          className="flex items-center justify-between px-5 h-12 border-b border-border/60 flex-shrink-0"
+          style={{ background: 'hsl(var(--surface-2))' }}
+        >
           <h2 className="text-[14px] font-semibold text-foreground">Settings</h2>
           <button
             onClick={onClose}
@@ -238,12 +255,42 @@ export function SettingsModal({
                 </p>
               </div>
 
+              {/* Notification Sound */}
+              <div>
+                <label className="block text-[12px] font-medium text-muted-foreground/70 mb-3">
+                  Notification Sound
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {NOTIFICATION_SOUNDS.map((sound) => {
+                    const isActive = notificationSound === sound;
+                    return (
+                      <button
+                        key={sound}
+                        onClick={() => onNotificationSoundChange(sound)}
+                        className={`px-3 py-2.5 rounded-lg text-[12px] border transition-all duration-150 ${
+                          isActive
+                            ? 'border-primary/40 bg-primary/8 text-foreground ring-1 ring-primary/20 font-medium'
+                            : 'border-border/60 text-muted-foreground/60 hover:bg-accent/40 hover:text-foreground'
+                        }`}
+                      >
+                        {SOUND_LABELS[sound]}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-muted-foreground/40 mt-2">
+                  Play a sound when a task finishes and needs attention
+                </p>
+              </div>
+
               {/* Version */}
               <div>
                 <label className="block text-[12px] font-medium text-muted-foreground/70 mb-1.5">
                   Version
                 </label>
-                <p className="text-[13px] text-muted-foreground/50 font-mono">{appVersion || '...'}</p>
+                <p className="text-[13px] text-muted-foreground/50 font-mono">
+                  {appVersion || '...'}
+                </p>
               </div>
             </div>
           )}
@@ -274,7 +321,10 @@ export function SettingsModal({
                     <div className="flex-1 h-px bg-border/30" />
                   </div>
 
-                  <div className="rounded-xl border border-border/40 overflow-hidden" style={{ background: 'hsl(var(--surface-2))' }}>
+                  <div
+                    className="rounded-xl border border-border/40 overflow-hidden"
+                    style={{ background: 'hsl(var(--surface-2))' }}
+                  >
                     {group.items.map((binding, i) => {
                       const modified = isModified(binding);
 
@@ -319,16 +369,25 @@ export function SettingsModal({
           {tab === 'connections' && (
             <div className="space-y-3 animate-fade-in">
               {/* Claude CLI */}
-              <div className="flex items-start gap-3.5 p-4 rounded-xl border border-border/40" style={{ background: 'hsl(var(--surface-2))' }}>
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                  claudeInfo?.installed
-                    ? 'bg-[hsl(var(--git-added)/0.12)]'
-                    : 'bg-[hsl(var(--git-modified)/0.12)]'
-                }`}>
+              <div
+                className="flex items-start gap-3.5 p-4 rounded-xl border border-border/40"
+                style={{ background: 'hsl(var(--surface-2))' }}
+              >
+                <div
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                    claudeInfo?.installed
+                      ? 'bg-[hsl(var(--git-added)/0.12)]'
+                      : 'bg-[hsl(var(--git-modified)/0.12)]'
+                  }`}
+                >
                   {claudeInfo?.installed ? (
                     <Check size={14} className="text-[hsl(var(--git-added))]" strokeWidth={2.5} />
                   ) : (
-                    <AlertCircle size={14} className="text-[hsl(var(--git-modified))]" strokeWidth={2} />
+                    <AlertCircle
+                      size={14}
+                      className="text-[hsl(var(--git-modified))]"
+                      strokeWidth={2}
+                    />
                   )}
                 </div>
                 <div className="min-w-0">

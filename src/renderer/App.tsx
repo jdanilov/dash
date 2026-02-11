@@ -15,6 +15,8 @@ import type { Project, Task, GitStatus, DiffResult } from '../shared/types';
 import { loadKeybindings, saveKeybindings, matchesBinding } from './keybindings';
 import type { KeyBindingMap } from './keybindings';
 import { sessionRegistry } from './terminal/SessionRegistry';
+import { playNotificationSound } from './sounds';
+import type { NotificationSound } from './sounds';
 
 const GIT_POLL_INTERVAL = 5000;
 
@@ -39,9 +41,17 @@ export function App() {
     return parseInt(stored, 10) || 3;
   });
   const [keybindings, setKeybindings] = useState<KeyBindingMap>(loadKeybindings);
+  const [notificationSound, setNotificationSound] = useState<NotificationSound>(() => {
+    return (localStorage.getItem('notificationSound') as NotificationSound) || 'off';
+  });
 
   // Activity state — keys are PTY IDs that have active sessions
   const [taskActivity, setTaskActivity] = useState<Record<string, 'busy' | 'idle'>>({});
+
+  const notificationSoundRef = useRef(notificationSound);
+  useEffect(() => {
+    notificationSoundRef.current = notificationSound;
+  }, [notificationSound]);
 
   // Git state
   const [gitStatus, setGitStatus] = useState<GitStatus | null>(null);
@@ -88,10 +98,44 @@ export function App() {
 
   // Activity monitor — subscribe first, then query to avoid race
   useEffect(() => {
-    const unsubscribe = window.electronAPI.onPtyActivity(setTaskActivity);
-    window.electronAPI.ptyGetAllActivity().then((resp) => {
-      if (resp.success && resp.data) setTaskActivity(resp.data);
+    const prevActivity: Record<string, 'busy' | 'idle'> = {};
+    // Track PTYs that have been idle at least once, so we skip the initial
+    // busy→idle transition that fires when a direct-spawn PTY first registers.
+    const hasBeenIdle = new Set<string>();
+
+    const unsubscribe = window.electronAPI.onPtyActivity((newActivity) => {
+      // Detect any busy→idle transition (only for PTYs that completed a full work cycle)
+      for (const [id, state] of Object.entries(newActivity)) {
+        if (prevActivity[id] === 'busy' && state === 'idle' && hasBeenIdle.has(id)) {
+          playNotificationSound(notificationSoundRef.current);
+          break; // one sound per update, even if multiple tasks transition
+        }
+      }
+      // Mark PTYs that have reached idle (so the *next* busy→idle triggers)
+      for (const [id, state] of Object.entries(newActivity)) {
+        if (state === 'idle') hasBeenIdle.add(id);
+      }
+      // Clean up removed PTYs
+      for (const id of hasBeenIdle) {
+        if (!(id in newActivity)) hasBeenIdle.delete(id);
+      }
+      // Update previous state (shallow copy)
+      Object.keys(prevActivity).forEach((k) => delete prevActivity[k]);
+      Object.assign(prevActivity, newActivity);
+
+      setTaskActivity(newActivity);
     });
+
+    window.electronAPI.ptyGetAllActivity().then((resp) => {
+      if (resp.success && resp.data) {
+        Object.assign(prevActivity, resp.data);
+        for (const [id, state] of Object.entries(resp.data)) {
+          if (state === 'idle') hasBeenIdle.add(id);
+        }
+        setTaskActivity(resp.data);
+      }
+    });
+
     return unsubscribe;
   }, []);
 
@@ -612,6 +656,12 @@ export function App() {
           onDiffContextLinesChange={(v) => {
             setDiffContextLines(v);
             localStorage.setItem('diffContextLines', String(v));
+          }}
+          notificationSound={notificationSound}
+          onNotificationSoundChange={(v) => {
+            setNotificationSound(v);
+            localStorage.setItem('notificationSound', v);
+            if (v !== 'off') playNotificationSound(v);
           }}
           keybindings={keybindings}
           onKeybindingsChange={(b) => {
