@@ -32,6 +32,7 @@
         { "target": "dmg", "arch": ["arm64"] },
         { "target": "zip", "arch": ["arm64"] }
       ],
+      "icon": "build/icon.icns",
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
       "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"

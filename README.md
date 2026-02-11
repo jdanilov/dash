@@ -18,13 +18,17 @@ The main idea: you open a project, create tasks, and each task gets an isolated 
 
 Download the latest `.dmg` from [Releases](https://github.com/syv-ai/dash/releases).
 
-The app isn't code-signed yet, so macOS will block it on first launch. After dragging Dash to Applications, run:
+Or build and install locally:
 
 ```bash
-xattr -cr /Applications/Dash.app
+git clone git@github.com:syv-ai/dash.git
+cd dash
+pnpm install
+pnpm rebuild
+./scripts/build-local.sh
 ```
 
-Then open normally.
+This builds the app, ad-hoc signs it, and copies `Dash.app` to `/Applications`.
 
 ## Prerequisites
 
