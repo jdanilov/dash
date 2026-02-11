@@ -9,6 +9,7 @@ import { SettingsModal } from './components/SettingsModal';
 import type { Project, Task, GitStatus, DiffResult } from '../shared/types';
 import { loadKeybindings, saveKeybindings, matchesBinding } from './keybindings';
 import type { KeyBindingMap } from './keybindings';
+import { sessionRegistry } from './terminal/SessionRegistry';
 
 const GIT_POLL_INTERVAL = 5000;
 
@@ -62,6 +63,13 @@ export function App() {
   // Load projects on mount
   useEffect(() => {
     loadProjects();
+  }, []);
+
+  // Save all terminal snapshots when app is about to quit
+  useEffect(() => {
+    return window.electronAPI.onBeforeQuit(() => {
+      sessionRegistry.saveAllSnapshots();
+    });
   }, []);
 
   // Load tasks for all projects when projects change

@@ -131,6 +131,19 @@ app.on('activate', async () => {
 });
 
 app.on('before-quit', async () => {
+  // Signal renderer to save all terminal snapshots before we kill PTYs
+  try {
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.isDestroyed()) {
+        win.webContents.send('app:beforeQuit');
+      }
+    }
+    // Give renderer a moment to save snapshots
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  } catch {
+    // Best effort
+  }
+
   // Kill all PTYs
   try {
     const { killAll } = await import('./services/ptyManager');
