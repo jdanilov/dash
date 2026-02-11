@@ -51,6 +51,16 @@ class SessionRegistryImpl {
       this.sessions.delete(id);
     }
   }
+
+  /**
+   * Force-save snapshots for all active sessions.
+   * Called before app quit so terminal state persists across restarts.
+   */
+  async saveAllSnapshots(): Promise<void> {
+    for (const session of this.sessions.values()) {
+      await session.forceSaveSnapshot();
+    }
+  }
 }
 
 export const sessionRegistry = new SessionRegistryImpl();

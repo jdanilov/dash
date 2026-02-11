@@ -161,9 +161,7 @@ export class TerminalSessionManager {
 
     // Start PTY if not started (first attach)
     if (!this.ptyStarted) {
-      // Don't restore snapshot on first launch — PTY will send its own output.
-      // Snapshots are only useful if we support re-attach without re-spawning PTY.
-      await this.startPty();
+      await this.initializeTerminal();
     }
 
     // Snapshot timer
@@ -225,6 +223,11 @@ export class TerminalSessionManager {
     this.terminal.options.theme = isDark ? darkTheme : lightTheme;
   }
 
+  /** Public wrapper for saving snapshot (used by SessionRegistry on app quit). */
+  async forceSaveSnapshot(): Promise<void> {
+    await this.saveSnapshot();
+  }
+
   private fit() {
     try {
       this.fitAddon.fit();
@@ -241,7 +244,58 @@ export class TerminalSessionManager {
     }
   }
 
-  private async startPty() {
+  /**
+   * Initialize terminal with snapshot restore and resume support.
+   *
+   * For Claude CLI (which supports -r resume):
+   *   - Check if a Claude session exists for this cwd
+   *   - If yes: spawn with resume=true (CLI restores conversation via -r)
+   *     Skip snapshot restore since the CLI will replay its own output
+   *   - If no: spawn fresh (no resume, no snapshot)
+   *
+   * For shell fallback (no resume support):
+   *   - Restore snapshot for visual context, then spawn shell
+   */
+  private async initializeTerminal() {
+    // Check for existing snapshot
+    let snapshot: TerminalSnapshot | null = null;
+    try {
+      const resp = await window.electronAPI.ptyGetSnapshot(this.id);
+      if (resp.success && resp.data) {
+        snapshot = resp.data;
+      }
+    } catch {
+      // Best effort
+    }
+
+    // Check if Claude has an existing session for this working directory
+    let hasSession = false;
+    if (snapshot) {
+      try {
+        const resp = await window.electronAPI.ptyHasClaudeSession(this.cwd);
+        if (resp.success && resp.data) {
+          hasSession = true;
+        }
+      } catch {
+        // Best effort
+      }
+    }
+
+    await this.startPty(hasSession);
+
+    // For resume-capable CLIs, the CLI handles history replay — skip snapshot.
+    // For non-resume cases (no session found, or shell fallback), show the snapshot
+    // so the user sees their previous terminal output.
+    if (snapshot && !hasSession) {
+      try {
+        this.terminal.write(snapshot.data);
+      } catch {
+        // Best effort
+      }
+    }
+  }
+
+  private async startPty(resume: boolean = false) {
     const dims = this.fitAddon.proposeDimensions();
     const cols = dims?.cols ?? 120;
     const rows = dims?.rows ?? 30;
@@ -252,7 +306,7 @@ export class TerminalSessionManager {
       cols,
       rows,
       autoApprove: this.autoApprove,
-      resume: false,
+      resume,
     });
 
     if (!resp.success) {
@@ -318,17 +372,6 @@ export class TerminalSessionManager {
         data,
       };
       await window.electronAPI.ptySaveSnapshot(this.id, snapshot);
-    } catch {
-      // Best effort
-    }
-  }
-
-  private async restoreSnapshot() {
-    try {
-      const resp = await window.electronAPI.ptyGetSnapshot(this.id);
-      if (resp.success && resp.data) {
-        this.terminal.write(resp.data.data);
-      }
     } catch {
       // Best effort
     }

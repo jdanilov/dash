@@ -61,6 +61,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('pty:snapshot:save', id, payload),
   ptyClearSnapshot: (id: string) => ipcRenderer.invoke('pty:snapshot:clear', id),
 
+  // Session detection
+  ptyHasClaudeSession: (cwd: string) => ipcRenderer.invoke('pty:hasClaudeSession', cwd),
+
+  // App lifecycle
+  onBeforeQuit: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on('app:beforeQuit', handler);
+    return () => {
+      ipcRenderer.removeListener('app:beforeQuit', handler);
+    };
+  },
+
   // Git detection
   detectGit: (folderPath: string) => ipcRenderer.invoke('app:detectGit', folderPath),
   detectClaude: () => ipcRenderer.invoke('app:detectClaude'),

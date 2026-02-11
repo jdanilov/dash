@@ -45,6 +45,12 @@ export interface ElectronAPI {
   ptySaveSnapshot: (id: string, payload: TerminalSnapshot) => Promise<IpcResponse<void>>;
   ptyClearSnapshot: (id: string) => Promise<IpcResponse<void>>;
 
+  // Session detection
+  ptyHasClaudeSession: (cwd: string) => Promise<IpcResponse<boolean>>;
+
+  // App lifecycle
+  onBeforeQuit: (callback: () => void) => () => void;
+
   // Git detection
   detectGit: (folderPath: string) => Promise<IpcResponse<{ remote: string | null; branch: string | null }>>;
   detectClaude: () => Promise<IpcResponse<{ installed: boolean; version: string | null; path: string | null }>>;
