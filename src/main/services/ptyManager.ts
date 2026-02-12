@@ -215,6 +215,8 @@ export async function startDirectPty(options: {
   });
 
   proc.onExit(({ exitCode, signal }: { exitCode: number; signal?: number }) => {
+    // Skip if this PTY was replaced by a new spawn (kill+restart on reattach)
+    if (ptys.get(options.id) !== record) return;
     activityMonitor.unregister(options.id);
     if (record.owner && !record.owner.isDestroyed()) {
       record.owner.send(`pty:exit:${options.id}`, { exitCode, signal });
@@ -278,6 +280,8 @@ export async function startPty(options: {
   });
 
   proc.onExit(({ exitCode, signal }: { exitCode: number; signal?: number }) => {
+    // Skip if this PTY was replaced by a new spawn (kill+restart on reattach)
+    if (ptys.get(options.id) !== record) return;
     activityMonitor.unregister(options.id);
     if (record.owner && !record.owner.isDestroyed()) {
       record.owner.send(`pty:exit:${options.id}`, { exitCode, signal });
@@ -318,13 +322,14 @@ export function resizePty(id: string, cols: number, rows: number): void {
 export function killPty(id: string): void {
   const record = ptys.get(id);
   if (record) {
+    // Delete first so the guarded onExit handler becomes a no-op
+    ptys.delete(id);
+    activityMonitor.unregister(id);
     try {
       record.proc.kill();
     } catch {
-      // Already dead — onExit may not fire, so clean up manually
-      activityMonitor.unregister(id);
+      // Already dead
     }
-    ptys.delete(id);
   }
 }
 

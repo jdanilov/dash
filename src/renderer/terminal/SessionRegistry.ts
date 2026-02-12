@@ -11,9 +11,8 @@ class SessionRegistryImpl {
   private sessions = new Map<string, TerminalSessionManager>();
   private _isDark = true;
 
-  attach(opts: AttachOptions): TerminalSessionManager {
+  getOrCreate(opts: Omit<AttachOptions, 'container'>): TerminalSessionManager {
     let session = this.sessions.get(opts.id);
-
     if (!session) {
       session = new TerminalSessionManager({
         id: opts.id,
@@ -23,7 +22,11 @@ class SessionRegistryImpl {
       });
       this.sessions.set(opts.id, session);
     }
+    return session;
+  }
 
+  attach(opts: AttachOptions): TerminalSessionManager {
+    const session = this.getOrCreate(opts);
     session.attach(opts.container);
     return session;
   }
