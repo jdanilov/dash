@@ -86,6 +86,8 @@ export function App() {
 
   const sidebarPanelRef = useRef<ImperativePanelHandle>(null);
   const changesPanelRef = useRef<ImperativePanelHandle>(null);
+  const [sidebarAnimating, setSidebarAnimating] = useState(false);
+  const [changesAnimating, setChangesAnimating] = useState(false);
   const fileWatcherCleanup = useRef<(() => void) | null>(null);
   const gitPollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -375,6 +377,7 @@ export function App() {
   const toggleSidebar = useCallback(() => {
     const panel = sidebarPanelRef.current;
     if (!panel) return;
+    setSidebarAnimating(true);
     if (sidebarCollapsed) {
       panel.expand();
     } else {
@@ -385,6 +388,7 @@ export function App() {
   const toggleChangesPanel = useCallback(() => {
     const panel = changesPanelRef.current;
     if (!panel) return;
+    setChangesAnimating(true);
     if (changesPanelCollapsed) {
       panel.expand();
     } else {
@@ -714,6 +718,7 @@ export function App() {
       <PanelGroup direction="horizontal" className="flex-1">
         <Panel
           ref={sidebarPanelRef}
+          className={sidebarAnimating ? 'panel-transition' : ''}
           defaultSize={sidebarCollapsed ? 3 : 18}
           minSize={12}
           maxSize={28}
@@ -722,10 +727,12 @@ export function App() {
           onCollapse={() => {
             setSidebarCollapsed(true);
             localStorage.setItem('sidebarCollapsed', 'true');
+            setTimeout(() => setSidebarAnimating(false), 200);
           }}
           onExpand={() => {
             setSidebarCollapsed(false);
             localStorage.setItem('sidebarCollapsed', 'false');
+            setTimeout(() => setSidebarAnimating(false), 200);
           }}
         >
           <LeftSidebar
@@ -751,7 +758,7 @@ export function App() {
         </Panel>
         <PanelResizeHandle disabled={sidebarCollapsed} className="w-[1px] bg-border/40" />
 
-        <Panel minSize={35}>
+        <Panel className={sidebarAnimating || changesAnimating ? 'panel-transition' : ''} minSize={35}>
           <MainContent
             activeTask={activeTask}
             activeProject={activeProject}
@@ -768,6 +775,7 @@ export function App() {
             <PanelResizeHandle disabled={changesPanelCollapsed} className="w-[1px] bg-border/40" />
             <Panel
               ref={changesPanelRef}
+              className={changesAnimating ? 'panel-transition' : ''}
               defaultSize={changesPanelCollapsed ? 3 : 22}
               minSize={12}
               maxSize={40}
@@ -776,10 +784,12 @@ export function App() {
               onCollapse={() => {
                 setChangesPanelCollapsed(true);
                 localStorage.setItem('changesPanelCollapsed', 'true');
+                setTimeout(() => setChangesAnimating(false), 200);
               }}
               onExpand={() => {
                 setChangesPanelCollapsed(false);
                 localStorage.setItem('changesPanelCollapsed', 'false');
+                setTimeout(() => setChangesAnimating(false), 200);
               }}
             >
               <FileChangesPanel

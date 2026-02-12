@@ -284,3 +284,23 @@
 .diff-gutter-clickable:hover {
   background: hsl(var(--primary) / 0.08);
 }
+
+/* ── Panel Collapse/Expand Animation ─────────────────────── */
+.panel-transition {
+  transition: flex-grow 200ms ease-out, flex-shrink 200ms ease-out;
+}
+
+/* ── File Item Enter Animation ───────────────────────────── */
+@keyframes file-item-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.file-item-enter {
+  animation: file-item-enter 200ms ease-out;
+}

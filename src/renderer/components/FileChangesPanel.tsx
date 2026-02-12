@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Plus,
   Minus,
@@ -80,12 +80,14 @@ function StatusIcon({ status }: { status: FileChangeStatus }) {
 
 function FileItem({
   file,
+  isNew,
   onStage,
   onUnstage,
   onDiscard,
   onViewDiff,
 }: {
   file: FileChange;
+  isNew?: boolean;
   onStage: () => void;
   onUnstage: () => void;
   onDiscard: () => void;
@@ -96,7 +98,7 @@ function FileItem({
 
   return (
     <div
-      className="group flex items-center gap-2 px-2 py-[5px] rounded-md text-[13px] cursor-pointer hover:bg-accent/50 transition-all duration-150"
+      className={`group flex items-center gap-2 px-2 py-[5px] rounded-md text-[13px] cursor-pointer hover:bg-accent/50 transition-all duration-150 ${isNew ? 'file-item-enter' : ''}`}
       onClick={onViewDiff}
     >
       {/* Staged checkbox */}
@@ -217,6 +219,25 @@ export function FileChangesPanel({
 
   const stagedFiles = gitStatus.files.filter((f) => f.staged);
   const unstagedFiles = gitStatus.files.filter((f) => !f.staged);
+
+  // Track previous file keys to detect newly added files
+  const prevFileKeysRef = useRef<Set<string>>(new Set());
+  const newFileKeysRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const currentKeys = new Set(gitStatus.files.map((f) => `${f.staged ? 's' : 'u'}-${f.path}`));
+    const newKeys = new Set<string>();
+    // Only mark files as new if we had a previous set (skip initial render)
+    if (prevFileKeysRef.current.size > 0) {
+      for (const key of currentKeys) {
+        if (!prevFileKeysRef.current.has(key)) {
+          newKeys.add(key);
+        }
+      }
+    }
+    newFileKeysRef.current = newKeys;
+    prevFileKeysRef.current = currentKeys;
+  }, [gitStatus.files]);
   const allStaged = unstagedFiles.length === 0 && stagedFiles.length > 0;
   const noneStaged = stagedFiles.length === 0;
 
@@ -254,13 +275,13 @@ export function FileChangesPanel({
           {onToggleCollapse && (
             <button
               onClick={onToggleCollapse}
-              className="p-[3px] -ml-1 rounded hover:bg-accent text-muted-foreground/40 hover:text-foreground transition-colors"
+              className="p-[3px] -ml-1 rounded hover:bg-accent text-muted-foreground/60 hover:text-foreground transition-colors"
               title="Collapse changes panel"
             >
               <PanelRightClose size={15} strokeWidth={1.8} />
             </button>
           )}
-          <span className="text-[11px] font-semibold uppercase text-muted-foreground/70 tracking-[0.08em]">
+          <span className="text-[11px] font-semibold uppercase text-foreground/80 tracking-[0.08em]">
             Changes
           </span>
           {totalChanges > 0 && (
@@ -310,9 +331,14 @@ export function FileChangesPanel({
         {totalChanges === 0 && (
           <div className="flex flex-col items-center justify-center h-full gap-2">
             <div className="w-8 h-8 rounded-xl bg-accent/40 flex items-center justify-center">
-              <FileDiff size={14} className="text-muted-foreground/30" strokeWidth={1.5} />
+              <FileDiff size={14} className="text-foreground/30" strokeWidth={1.5} />
             </div>
-            <p className="text-[11px] text-muted-foreground/40">No changes</p>
+            <p className="text-[11px] text-foreground/40">No changes</p>
+            {gitStatus && gitStatus.ahead > 0 && (
+              <p className="text-[10px] text-muted-foreground/40">
+                {gitStatus.ahead} commit{gitStatus.ahead !== 1 ? 's' : ''} ahead
+              </p>
+            )}
           </div>
         )}
 
@@ -323,6 +349,7 @@ export function FileChangesPanel({
               <FileItem
                 key={`staged-${file.path}`}
                 file={file}
+                isNew={newFileKeysRef.current.has(`s-${file.path}`)}
                 onStage={() => {}}
                 onUnstage={() => onUnstageFile(file.path)}
                 onDiscard={() => {}}
@@ -333,6 +360,7 @@ export function FileChangesPanel({
               <FileItem
                 key={`unstaged-${file.path}`}
                 file={file}
+                isNew={newFileKeysRef.current.has(`u-${file.path}`)}
                 onStage={() => onStageFile(file.path)}
                 onUnstage={() => {}}
                 onDiscard={() => onDiscardFile(file.path)}

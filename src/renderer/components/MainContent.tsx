@@ -103,7 +103,7 @@ export function MainContent({
                 </button>
               ))}
             </div>
-            <div className="flex items-center gap-1.5 text-muted-foreground/50 flex-shrink-0">
+            <div className="flex items-center gap-1.5 text-foreground/60 flex-shrink-0">
               <GitBranch size={11} strokeWidth={2} />
               <span className="text-[11px] font-mono">{activeTask.branch}</span>
             </div>
@@ -114,7 +114,7 @@ export function MainContent({
               <div className="w-[7px] h-[7px] rounded-full bg-[hsl(var(--git-added))] status-pulse" />
               <span className="text-[13px] font-medium text-foreground">{activeTask.name}</span>
             </div>
-            <div className="flex items-center gap-1.5 text-muted-foreground/50">
+            <div className="flex items-center gap-1.5 text-foreground/60">
               <GitBranch size={11} strokeWidth={2} />
               <span className="text-[11px] font-mono">{activeTask.branch}</span>
             </div>
