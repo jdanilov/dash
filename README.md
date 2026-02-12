@@ -16,9 +16,7 @@ The main idea: you open a project, create tasks, and each task gets an isolated 
 
 ## Install
 
-Download the latest `.dmg` from [Releases](https://github.com/syv-ai/dash/releases).
-
-Or build and install locally:
+Build and install locally:
 
 ```bash
 git clone git@github.com:syv-ai/dash.git
