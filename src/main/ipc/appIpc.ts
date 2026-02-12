@@ -1,4 +1,4 @@
-import { ipcMain, dialog, app } from 'electron';
+import { ipcMain, dialog, app, BrowserWindow } from 'electron';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
@@ -13,9 +13,10 @@ export function registerAppIpc(): void {
 
   ipcMain.handle('app:showOpenDialog', async () => {
     try {
-      const result = await dialog.showOpenDialog({
-        properties: ['openDirectory'],
-      });
+      const win = BrowserWindow.getFocusedWindow();
+      const result = win
+        ? await dialog.showOpenDialog(win, { properties: ['openDirectory'] })
+        : await dialog.showOpenDialog({ properties: ['openDirectory'] });
 
       if (result.canceled || result.filePaths.length === 0) {
         return { success: true, data: [] };

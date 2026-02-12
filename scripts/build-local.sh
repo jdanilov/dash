@@ -6,15 +6,18 @@ APP_NAME="Dash"
 APP_PATH="$ROOT/release/mac-arm64/$APP_NAME.app"
 DEST="/Applications/$APP_NAME.app"
 
-echo "==> Building $APP_NAME..."
+echo "==> Rebuilding native modules for Electron..."
 cd "$ROOT"
+pnpm exec electron-rebuild -f -w better-sqlite3,node-pty
+
+echo "==> Building $APP_NAME..."
 pnpm build
 
 echo "==> Packaging for macOS..."
 pnpm exec electron-builder --mac
 
 echo "==> Ad-hoc signing..."
-codesign --force --deep --sign - "$APP_PATH"
+codesign --force --deep --sign - --entitlements "$ROOT/build/entitlements.mac.plist" "$APP_PATH"
 codesign --verify --verbose "$APP_PATH"
 
 echo "==> Moving to /Applications..."
