@@ -31,6 +31,8 @@ function getPty() {
   return ptyModule!;
 }
 
+import { createBannerFilter } from './bannerFilter';
+
 // Cached Claude CLI path
 let cachedClaudePath: string | null = null;
 
@@ -253,11 +255,15 @@ export async function startDirectPty(options: {
   ptys.set(options.id, record);
   activityMonitor.register(options.id, proc.pid, true);
 
-  // Forward output to renderer
-  proc.onData((data: string) => {
+  // Forward output to renderer, replacing the Claude logo with "7" art
+  const bannerFilter = createBannerFilter((filtered: string) => {
     if (record.owner && !record.owner.isDestroyed()) {
-      record.owner.send(`pty:data:${options.id}`, data);
+      record.owner.send(`pty:data:${options.id}`, filtered);
     }
+  });
+
+  proc.onData((data: string) => {
+    bannerFilter(data);
   });
 
   proc.onExit(({ exitCode, signal }: { exitCode: number; signal?: number }) => {
