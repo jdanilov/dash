@@ -49,6 +49,11 @@ export interface ElectronAPI {
     projectPath: string;
     worktreePath: string;
     branch: string;
+    options?: {
+      deleteWorktreeDir?: boolean;
+      deleteLocalBranch?: boolean;
+      deleteRemoteBranch?: boolean;
+    };
   }) => Promise<IpcResponse<void>>;
   worktreeClaimReserve: (args: {
     projectId: string;

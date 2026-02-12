@@ -3,7 +3,7 @@ import { promisify } from 'util';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
-import type { WorktreeInfo } from '@shared/types';
+import type { WorktreeInfo, RemoveWorktreeOptions } from '@shared/types';
 
 const execFileAsync = promisify(execFile);
 
@@ -69,7 +69,12 @@ export class WorktreeService {
     projectPath: string,
     worktreePath: string,
     branch: string,
+    options?: RemoveWorktreeOptions,
   ): Promise<void> {
+    const deleteWorktreeDir = options?.deleteWorktreeDir ?? true;
+    const deleteLocalBranch = options?.deleteLocalBranch ?? true;
+    const deleteRemoteBranch = options?.deleteRemoteBranch ?? true;
+
     // Safety: never remove the project directory itself
     const normalizedProject = path.resolve(projectPath);
     const normalizedWorktree = path.resolve(worktreePath);
@@ -77,52 +82,58 @@ export class WorktreeService {
       throw new Error('Cannot remove project directory as worktree');
     }
 
-    // Verify this is actually a worktree
-    try {
-      const { stdout } = await execFileAsync('git', ['worktree', 'list', '--porcelain'], {
-        cwd: projectPath,
-      });
-      if (!stdout.includes(normalizedWorktree)) {
-        // Not a registered worktree, just do filesystem cleanup
-        if (fs.existsSync(normalizedWorktree)) {
-          fs.rmSync(normalizedWorktree, { recursive: true, force: true });
+    if (deleteWorktreeDir) {
+      // Verify this is actually a worktree
+      try {
+        const { stdout } = await execFileAsync('git', ['worktree', 'list', '--porcelain'], {
+          cwd: projectPath,
+        });
+        if (!stdout.includes(normalizedWorktree)) {
+          // Not a registered worktree, just do filesystem cleanup
+          if (fs.existsSync(normalizedWorktree)) {
+            fs.rmSync(normalizedWorktree, { recursive: true, force: true });
+          }
+          return;
         }
-        return;
+      } catch {
+        // If list fails, continue with removal anyway
       }
-    } catch {
-      // If list fails, continue with removal anyway
-    }
 
-    // Remove worktree
-    try {
-      await execFileAsync('git', ['worktree', 'remove', '--force', worktreePath], {
-        cwd: projectPath,
-      });
-    } catch {
-      // Force filesystem removal if git worktree remove fails
-      if (fs.existsSync(worktreePath)) {
-        fs.rmSync(worktreePath, { recursive: true, force: true });
+      // Remove worktree
+      try {
+        await execFileAsync('git', ['worktree', 'remove', '--force', worktreePath], {
+          cwd: projectPath,
+        });
+      } catch {
+        // Force filesystem removal if git worktree remove fails
+        if (fs.existsSync(worktreePath)) {
+          fs.rmSync(worktreePath, { recursive: true, force: true });
+        }
       }
-    }
 
-    // Prune
-    try {
-      await execFileAsync('git', ['worktree', 'prune'], { cwd: projectPath });
-    } catch {
-      // Best effort
+      // Prune
+      try {
+        await execFileAsync('git', ['worktree', 'prune'], { cwd: projectPath });
+      } catch {
+        // Best effort
+      }
     }
 
     // Delete local branch
-    try {
-      await execFileAsync('git', ['branch', '-D', branch], { cwd: projectPath });
-    } catch {
-      // May not exist
+    if (deleteLocalBranch) {
+      try {
+        await execFileAsync('git', ['branch', '-D', branch], { cwd: projectPath });
+      } catch {
+        // May not exist
+      }
     }
 
     // Delete remote branch (best effort, non-blocking)
-    execFileAsync('git', ['push', 'origin', '--delete', branch], { cwd: projectPath }).catch(
-      () => {},
-    );
+    if (deleteRemoteBranch) {
+      execFileAsync('git', ['push', 'origin', '--delete', branch], { cwd: projectPath }).catch(
+        () => {},
+      );
+    }
   }
 
   /**
@@ -177,9 +188,7 @@ export class WorktreeService {
         // For wildcard patterns, list files and match
         try {
           const files = fs.readdirSync(from);
-          const regex = new RegExp(
-            '^' + pattern.replace(/\./g, '\\.').replace(/\*/g, '.*') + '$',
-          );
+          const regex = new RegExp('^' + pattern.replace(/\./g, '\\.').replace(/\*/g, '.*') + '$');
           for (const file of files) {
             if (regex.test(file)) {
               const srcFile = path.join(from, file);

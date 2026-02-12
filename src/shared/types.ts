@@ -60,6 +60,12 @@ export interface ReserveWorktree {
   createdAt: string;
 }
 
+export interface RemoveWorktreeOptions {
+  deleteWorktreeDir?: boolean;
+  deleteLocalBranch?: boolean;
+  deleteRemoteBranch?: boolean;
+}
+
 export interface PtyOptions {
   id: string;
   cwd: string;

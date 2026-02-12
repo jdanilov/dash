@@ -11,6 +11,7 @@ import { FileChangesPanel } from './components/FileChangesPanel';
 import { DiffViewer } from './components/DiffViewer';
 import { TaskModal } from './components/TaskModal';
 import { AddProjectModal } from './components/AddProjectModal';
+import { DeleteTaskModal } from './components/DeleteTaskModal';
 import { SettingsModal } from './components/SettingsModal';
 import type { Project, Task, GitStatus, DiffResult } from '../shared/types';
 import { loadKeybindings, saveKeybindings, matchesBinding } from './keybindings';
@@ -37,6 +38,7 @@ export function App() {
     loading: false,
     error: null,
   });
+  const [deleteTaskTarget, setDeleteTaskTarget] = useState<Task | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     return (localStorage.getItem('theme') as 'light' | 'dark') || 'dark';
@@ -298,7 +300,10 @@ export function App() {
         setShowAddProjectModal(true);
       }
       if (keybindings.closeDiff && matchesBinding(e, keybindings.closeDiff)) {
-        if (showDiff) {
+        if (deleteTaskTarget) {
+          e.preventDefault();
+          setDeleteTaskTarget(null);
+        } else if (showDiff) {
           e.preventDefault();
           setShowDiff(false);
           setDiffResult(null);
@@ -348,6 +353,7 @@ export function App() {
     activeProjectId,
     projects,
     tasksByProject,
+    deleteTaskTarget,
     showDiff,
     showSettings,
     showTaskModal,
@@ -566,37 +572,45 @@ export function App() {
     }
   }
 
-  async function handleDeleteTask(id: string) {
+  function handleDeleteTask(id: string) {
     // Find task across all projects
-    let task: Task | undefined;
-    let taskProjectId: string | undefined;
-    for (const [projectId, tasks] of Object.entries(tasksByProject)) {
+    for (const tasks of Object.values(tasksByProject)) {
       const found = tasks.find((t) => t.id === id);
       if (found) {
-        task = found;
-        taskProjectId = projectId;
-        break;
+        setDeleteTaskTarget(found);
+        return;
       }
     }
+  }
 
-    if (task && task.useWorktree && taskProjectId) {
+  async function handleDeleteTaskConfirm(options?: {
+    deleteWorktreeDir: boolean;
+    deleteLocalBranch: boolean;
+    deleteRemoteBranch: boolean;
+  }) {
+    const task = deleteTaskTarget;
+    if (!task) return;
+    setDeleteTaskTarget(null);
+
+    const taskProjectId = task.projectId;
+
+    if (task.useWorktree) {
       const project = projects.find((p) => p.id === taskProjectId);
       if (project) {
         await window.electronAPI.worktreeRemove({
           projectPath: project.path,
           worktreePath: task.path,
           branch: task.branch,
+          options,
         });
       }
     }
 
-    await window.electronAPI.deleteTask(id);
-    if (activeTaskId === id) {
+    await window.electronAPI.deleteTask(task.id);
+    if (activeTaskId === task.id) {
       setActiveTaskId(null);
     }
-    if (taskProjectId) {
-      await loadTasksForProject(taskProjectId);
-    }
+    await loadTasksForProject(taskProjectId);
   }
 
   async function handleArchiveTask(id: string) {
@@ -836,6 +850,14 @@ export function App() {
             saveKeybindings(b);
           }}
           onClose={() => setShowSettings(false)}
+        />
+      )}
+
+      {deleteTaskTarget && (
+        <DeleteTaskModal
+          task={deleteTaskTarget}
+          onClose={() => setDeleteTaskTarget(null)}
+          onConfirm={handleDeleteTaskConfirm}
         />
       )}
 
