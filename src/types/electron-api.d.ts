@@ -46,6 +46,7 @@ export interface ElectronAPI {
     taskName: string;
     baseRef?: string;
     projectId: string;
+    linkedIssueNumbers?: number[];
   }) => Promise<IpcResponse<WorktreeInfo>>;
   worktreeRemove: (args: {
     projectPath: string;
@@ -61,6 +62,7 @@ export interface ElectronAPI {
     projectId: string;
     taskName: string;
     baseRef?: string;
+    linkedIssueNumbers?: number[];
   }) => Promise<IpcResponse<WorktreeInfo>>;
   worktreeEnsureReserve: (args: {
     projectId: string;
@@ -122,6 +124,7 @@ export interface ElectronAPI {
   // App lifecycle
   onBeforeQuit: (callback: () => void) => () => void;
   onFocusTask: (callback: (taskId: string) => void) => () => void;
+  onToast: (callback: (data: { message: string; url?: string }) => void) => () => void;
 
   // Settings
   setDesktopNotification: (opts: { enabled: boolean }) => void;
@@ -131,6 +134,11 @@ export interface ElectronAPI {
   githubSearchIssues: (cwd: string, query: string) => Promise<IpcResponse<GithubIssue[]>>;
   githubGetIssue: (cwd: string, number: number) => Promise<IpcResponse<GithubIssue>>;
   githubPostBranchComment: (
+    cwd: string,
+    issueNumber: number,
+    branch: string,
+  ) => Promise<IpcResponse<void>>;
+  githubLinkBranch: (
     cwd: string,
     issueNumber: number,
     branch: string,

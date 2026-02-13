@@ -3,7 +3,9 @@ import { promisify } from 'util';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
+import { BrowserWindow } from 'electron';
 import type { WorktreeInfo, RemoveWorktreeOptions } from '@shared/types';
+import { GithubService } from './GithubService';
 
 const execFileAsync = promisify(execFile);
 
@@ -23,7 +25,7 @@ export class WorktreeService {
   async createWorktree(
     projectPath: string,
     taskName: string,
-    options: { baseRef?: string; projectId: string },
+    options: { baseRef?: string; projectId: string; linkedIssueNumbers?: number[] },
   ): Promise<WorktreeInfo> {
     const slug = this.slugify(taskName);
     const hash = this.generateShortHash();
@@ -47,8 +49,13 @@ export class WorktreeService {
     // Copy preserved files
     await this.preserveFiles(projectPath, worktreePath);
 
-    // Push branch with upstream tracking (async, non-blocking)
-    this.pushBranchAsync(worktreePath, branchName);
+    // Link branch to issues before pushing (createLinkedBranch needs the branch to not exist)
+    if (options.linkedIssueNumbers && options.linkedIssueNumbers.length > 0) {
+      this.linkAndPushAsync(worktreePath, branchName, options.linkedIssueNumbers);
+    } else {
+      // Push branch with upstream tracking (async, non-blocking)
+      this.pushBranchAsync(worktreePath, branchName);
+    }
 
     const id = this.stableIdFromPath(worktreePath);
     return {
@@ -206,6 +213,39 @@ export class WorktreeService {
           // Skip
         }
       }
+    }
+  }
+
+  private async linkAndPushAsync(
+    cwd: string,
+    branch: string,
+    issueNumbers: number[],
+  ): Promise<void> {
+    try {
+      // createLinkedBranch creates the branch on the remote AND links it to the issue.
+      // Must happen before push so the branch doesn't already exist on the remote.
+      for (const num of issueNumbers) {
+        try {
+          const issueUrl = await GithubService.linkBranch(cwd, num, branch);
+          for (const win of BrowserWindow.getAllWindows()) {
+            if (!win.isDestroyed()) {
+              win.webContents.send('app:toast', {
+                message: `Issue #${num} linked to branch '${branch}'`,
+                url: issueUrl,
+              });
+            }
+          }
+        } catch {
+          // Best effort — gh may not be available
+        }
+      }
+      // Set upstream tracking (branch already exists on remote from createLinkedBranch)
+      await execFileAsync('git', ['branch', '--set-upstream-to', `origin/${branch}`, branch], {
+        cwd,
+      });
+    } catch {
+      // Fallback: just push normally if linking failed
+      this.pushBranchAsync(cwd, branch);
     }
   }
 

@@ -13,6 +13,7 @@ import { TaskModal } from './components/TaskModal';
 import { AddProjectModal } from './components/AddProjectModal';
 import { DeleteTaskModal } from './components/DeleteTaskModal';
 import { SettingsModal } from './components/SettingsModal';
+import { ToastContainer } from './components/Toast';
 import type { Project, Task, GitStatus, DiffResult, GithubIssue } from '../shared/types';
 import { loadKeybindings, saveKeybindings, matchesBinding } from './keybindings';
 import type { KeyBindingMap } from './keybindings';
@@ -529,11 +530,14 @@ export function App() {
 
     let worktreeInfo: { branch: string; path: string } | null = null;
 
+    const linkedIssueNumbers = linkedIssues?.map((i) => i.number);
+
     if (useWorktree) {
       const claimResp = await window.electronAPI.worktreeClaimReserve({
         projectId: targetProject.id,
         taskName: name,
         baseRef,
+        linkedIssueNumbers,
       });
 
       if (claimResp.success && claimResp.data) {
@@ -544,6 +548,7 @@ export function App() {
           taskName: name,
           baseRef,
           projectId: targetProject.id,
+          linkedIssueNumbers,
         });
         if (createResp.success && createResp.data) {
           worktreeInfo = { branch: createResp.data.branch, path: createResp.data.path };
@@ -553,8 +558,6 @@ export function App() {
 
     const branch = worktreeInfo?.branch ?? 'main';
     const taskPath = worktreeInfo?.path ?? targetProject.path;
-
-    const linkedIssueNumbers = linkedIssues?.map((i) => i.number) ?? null;
 
     const saveResp = await window.electronAPI.saveTask({
       projectId: targetProject.id,
@@ -601,6 +604,7 @@ export function App() {
       });
 
       // Fire-and-forget: post branch comment on each linked issue
+      // (branch linking happens in the worktree service before push)
       if (linkedIssues && linkedIssues.length > 0) {
         for (const issue of linkedIssues) {
           window.electronAPI.githubPostBranchComment(
@@ -608,7 +612,7 @@ export function App() {
             issue.number,
             branch,
           ).catch(() => {
-            // Best effort — don't block task creation
+            // Best effort
           });
         }
       }
@@ -921,6 +925,8 @@ export function App() {
           }}
         />
       )}
+
+      <ToastContainer />
     </div>
   );
 }

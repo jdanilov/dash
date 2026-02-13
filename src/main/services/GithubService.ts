@@ -64,6 +64,89 @@ export class GithubService {
       env: process.env as Record<string, string>,
     });
   }
+
+  /**
+   * Link a branch to an issue's "Development" section via GitHub GraphQL API.
+   * Uses createLinkedBranch which creates the branch on the remote and links it.
+   * Must be called before the branch is pushed to the remote.
+   * Returns the issue URL on success.
+   */
+  static async linkBranch(
+    cwd: string,
+    issueNumber: number,
+    branch: string,
+  ): Promise<string> {
+    // Resolve owner/repo from the local git remote
+    const { stdout: nwo } = await execFileAsync(
+      'gh',
+      ['repo', 'view', '--json', 'owner,name', '-q', '.owner.login + "/" + .name'],
+      { cwd, timeout: TIMEOUT_MS, env: process.env as Record<string, string> },
+    );
+    const [owner, repo] = nwo.trim().split('/');
+
+    // Get repo + issue node IDs
+    const query = `
+      query($owner: String!, $repo: String!, $number: Int!) {
+        repository(owner: $owner, name: $repo) {
+          id
+          issue(number: $number) { id }
+        }
+      }
+    `;
+    const { stdout: idsRaw } = await execFileAsync(
+      'gh',
+      [
+        'api', 'graphql',
+        '-F', `owner=${owner}`,
+        '-F', `repo=${repo}`,
+        '-F', `number=${issueNumber}`,
+        '-f', `query=${query}`,
+      ],
+      { cwd, timeout: TIMEOUT_MS, env: process.env as Record<string, string> },
+    );
+
+    const ids = JSON.parse(idsRaw);
+    const repoId = ids.data?.repository?.id;
+    const issueId = ids.data?.repository?.issue?.id;
+    if (!repoId || !issueId) {
+      throw new Error('Could not resolve repository or issue ID');
+    }
+
+    // Resolve the branch OID from the local repo
+    const { stdout: oid } = await execFileAsync(
+      'git',
+      ['rev-parse', branch],
+      { cwd, timeout: TIMEOUT_MS },
+    );
+
+    // createLinkedBranch creates the branch on the remote and links it to the issue
+    const mutation = `
+      mutation($repoId: ID!, $issueId: ID!, $oid: GitObjectID!, $branch: String!) {
+        createLinkedBranch(input: {
+          repositoryId: $repoId,
+          issueId: $issueId,
+          oid: $oid,
+          name: $branch
+        }) {
+          linkedBranch { id }
+        }
+      }
+    `;
+    await execFileAsync(
+      'gh',
+      [
+        'api', 'graphql',
+        '-F', `repoId=${repoId}`,
+        '-F', `issueId=${issueId}`,
+        '-F', `oid=${oid.trim()}`,
+        '-F', `branch=${branch}`,
+        '-f', `query=${mutation}`,
+      ],
+      { cwd, timeout: TIMEOUT_MS, env: process.env as Record<string, string> },
+    );
+
+    return `https://github.com/${owner}/${repo}/issues/${issueNumber}`;
+  }
 }
 
 function mapIssue(raw: Record<string, unknown>): GithubIssue {

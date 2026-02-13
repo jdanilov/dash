@@ -3,7 +3,9 @@ import { promisify } from 'util';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
+import { BrowserWindow } from 'electron';
 import { worktreeService } from './WorktreeService';
+import { GithubService } from './GithubService';
 import type { ReserveWorktree, WorktreeInfo } from '@shared/types';
 
 const execFileAsync = promisify(execFile);
@@ -81,6 +83,7 @@ export class WorktreePoolService {
     projectId: string,
     taskName: string,
     baseRef?: string,
+    linkedIssueNumbers?: number[],
   ): Promise<WorktreeInfo | null> {
     const reserve = this.reserves.get(projectId);
     if (!reserve) return null;
@@ -122,8 +125,34 @@ export class WorktreePoolService {
         }
       }
 
-      // Push branch async (non-blocking)
-      execFileAsync('git', ['push', '-u', 'origin', newBranch], { cwd: newPath }).catch(() => {});
+      // Link branch to issues before pushing (createLinkedBranch needs the branch to not exist)
+      if (linkedIssueNumbers && linkedIssueNumbers.length > 0) {
+        (async () => {
+          try {
+            for (const num of linkedIssueNumbers) {
+              try {
+                const issueUrl = await GithubService.linkBranch(newPath, num, newBranch);
+                for (const win of BrowserWindow.getAllWindows()) {
+                  if (!win.isDestroyed()) {
+                    win.webContents.send('app:toast', {
+                      message: `Issue #${num} linked to branch '${newBranch}'`,
+                      url: issueUrl,
+                    });
+                  }
+                }
+              } catch {
+                // Best effort
+              }
+            }
+            await execFileAsync('git', ['branch', '--set-upstream-to', `origin/${newBranch}`, newBranch], { cwd: newPath });
+          } catch {
+            execFileAsync('git', ['push', '-u', 'origin', newBranch], { cwd: newPath }).catch(() => {});
+          }
+        })();
+      } else {
+        // Push branch async (non-blocking)
+        execFileAsync('git', ['push', '-u', 'origin', newBranch], { cwd: newPath }).catch(() => {});
+      }
 
       // Fire-and-forget replenish
       this.ensureReserve(projectId, reserve.projectPath);

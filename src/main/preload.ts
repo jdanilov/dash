@@ -94,6 +94,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeListener('app:focusTask', handler);
     };
   },
+  onToast: (callback: (data: { message: string; url?: string }) => void) => {
+    const handler = (_event: unknown, data: { message: string; url?: string }) => callback(data);
+    ipcRenderer.on('app:toast', handler);
+    return () => {
+      ipcRenderer.removeListener('app:toast', handler);
+    };
+  },
 
   // Settings
   setDesktopNotification: (opts: { enabled: boolean }) =>
@@ -107,6 +114,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('github:get-issue', { cwd, number }),
   githubPostBranchComment: (cwd: string, issueNumber: number, branch: string) =>
     ipcRenderer.invoke('github:post-branch-comment', { cwd, issueNumber, branch }),
+  githubLinkBranch: (cwd: string, issueNumber: number, branch: string) =>
+    ipcRenderer.invoke('github:link-branch', { cwd, issueNumber, branch }),
 
   // Git detection
   detectGit: (folderPath: string) => ipcRenderer.invoke('app:detectGit', folderPath),
