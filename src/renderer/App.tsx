@@ -13,7 +13,7 @@ import { TaskModal } from './components/TaskModal';
 import { AddProjectModal } from './components/AddProjectModal';
 import { DeleteTaskModal } from './components/DeleteTaskModal';
 import { SettingsModal } from './components/SettingsModal';
-import type { Project, Task, GitStatus, DiffResult } from '../shared/types';
+import type { Project, Task, GitStatus, DiffResult, GithubIssue } from '../shared/types';
 import { loadKeybindings, saveKeybindings, matchesBinding } from './keybindings';
 import type { KeyBindingMap } from './keybindings';
 import { sessionRegistry } from './terminal/SessionRegistry';
@@ -90,6 +90,7 @@ export function App() {
   const [changesAnimating, setChangesAnimating] = useState(false);
   const fileWatcherCleanup = useRef<(() => void) | null>(null);
   const gitPollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const initialPromptsRef = useRef<Map<string, string>>(new Map());
 
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null;
 
@@ -522,6 +523,7 @@ export function App() {
     useWorktree: boolean,
     autoApprove: boolean,
     baseRef?: string,
+    linkedIssues?: GithubIssue[],
   ) {
     const targetProjectId = taskModalProjectId || activeProjectId;
     const targetProject = projects.find((p) => p.id === targetProjectId);
@@ -554,6 +556,8 @@ export function App() {
     const branch = worktreeInfo?.branch ?? 'main';
     const taskPath = worktreeInfo?.path ?? targetProject.path;
 
+    const linkedIssueNumbers = linkedIssues?.map((i) => i.number) ?? null;
+
     const saveResp = await window.electronAPI.saveTask({
       projectId: targetProject.id,
       name,
@@ -561,18 +565,48 @@ export function App() {
       path: taskPath,
       useWorktree,
       autoApprove,
+      linkedIssues: linkedIssueNumbers,
     });
 
     if (saveResp.success && saveResp.data) {
-      await window.electronAPI.getOrCreateDefaultConversation(saveResp.data.id);
+      const taskId = saveResp.data.id;
+
+      // Build initial prompt from linked issues
+      if (linkedIssues && linkedIssues.length > 0) {
+        const issueBlocks = linkedIssues.map((issue) => {
+          const labels = issue.labels.length > 0 ? `Labels: ${issue.labels.join(', ')}\n` : '';
+          const bodyExcerpt = issue.body
+            ? issue.body.slice(0, 2000) + (issue.body.length > 2000 ? '...' : '')
+            : '';
+          return `## Issue #${issue.number}: ${issue.title}\n${labels}${bodyExcerpt}`;
+        });
+
+        const prompt = `I'm working on the following GitHub issue(s):\n\n${issueBlocks.join('\n\n')}\n\nPlease help me implement a solution for this.`;
+        initialPromptsRef.current.set(taskId, prompt);
+      }
+
+      await window.electronAPI.getOrCreateDefaultConversation(taskId);
       await loadTasksForProject(targetProject.id);
       setActiveProjectId(targetProject.id);
-      setActiveTaskId(saveResp.data.id);
+      setActiveTaskId(taskId);
 
       window.electronAPI.worktreeEnsureReserve({
         projectId: targetProject.id,
         projectPath: targetProject.path,
       });
+
+      // Fire-and-forget: post branch comment on each linked issue
+      if (linkedIssues && linkedIssues.length > 0) {
+        for (const issue of linkedIssues) {
+          window.electronAPI.githubPostBranchComment(
+            targetProject.path,
+            issue.number,
+            branch,
+          ).catch(() => {
+            // Best effort — don't block task creation
+          });
+        }
+      }
     }
   }
 
@@ -767,6 +801,7 @@ export function App() {
             activeTaskId={activeTaskId}
             taskActivity={taskActivity}
             onSelectTask={setActiveTaskId}
+            initialPrompt={activeTaskId ? initialPromptsRef.current.get(activeTaskId) : undefined}
           />
         </Panel>
 

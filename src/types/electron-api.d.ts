@@ -8,6 +8,7 @@ import type {
   GitStatus,
   DiffResult,
   BranchInfo,
+  GithubIssue,
 } from '../shared/types';
 
 export interface ElectronAPI {
@@ -75,6 +76,7 @@ export interface ElectronAPI {
     autoApprove?: boolean;
     resume?: boolean;
     isDark?: boolean;
+    initialPrompt?: string;
   }) => Promise<IpcResponse<{ reattached: boolean; isDirectSpawn: boolean }>>;
   ptyStart: (args: {
     id: string;
@@ -109,6 +111,16 @@ export interface ElectronAPI {
 
   // Settings
   setDesktopNotification: (opts: { enabled: boolean }) => void;
+
+  // GitHub
+  githubCheckAvailable: () => Promise<IpcResponse<boolean>>;
+  githubSearchIssues: (cwd: string, query: string) => Promise<IpcResponse<GithubIssue[]>>;
+  githubGetIssue: (cwd: string, number: number) => Promise<IpcResponse<GithubIssue>>;
+  githubPostBranchComment: (
+    cwd: string,
+    issueNumber: number,
+    branch: string,
+  ) => Promise<IpcResponse<void>>;
 
   // Git detection
   detectGit: (

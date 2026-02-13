@@ -153,6 +153,7 @@ export async function startDirectPty(options: {
   autoApprove?: boolean;
   resume?: boolean;
   isDark?: boolean;
+  initialPrompt?: string;
   sender?: WebContents;
 }): Promise<{ reattached: boolean; isDirectSpawn: boolean }> {
   // Re-attach to existing PTY (e.g., after renderer reload)
@@ -183,6 +184,9 @@ export async function startDirectPty(options: {
   }
   if (options.autoApprove) {
     args.push('--dangerously-skip-permissions');
+  }
+  if (options.initialPrompt && !options.resume) {
+    args.push('-p', options.initialPrompt);
   }
 
   const env = buildDirectEnv(options.isDark ?? true);

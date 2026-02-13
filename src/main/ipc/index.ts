@@ -3,6 +3,7 @@ import { registerDbIpc } from './dbIpc';
 import { registerWorktreeIpc } from './worktreeIpc';
 import { registerPtyIpc } from './ptyIpc';
 import { registerGitIpc } from './gitIpc';
+import { registerGithubIpc } from './githubIpc';
 
 export function registerAllIpc(): void {
   registerAppIpc();
@@ -10,4 +11,5 @@ export function registerAllIpc(): void {
   registerWorktreeIpc();
   registerPtyIpc();
   registerGitIpc();
+  registerGithubIpc();
 }

@@ -18,6 +18,7 @@ export interface Task {
   status: string;
   useWorktree: boolean;
   autoApprove: boolean;
+  linkedIssues: number[] | null;
   archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -136,4 +137,16 @@ export interface DiffLine {
   content: string;
   oldLineNumber: number | null;
   newLineNumber: number | null;
+}
+
+// ── GitHub Types ────────────────────────────────────────────
+
+export interface GithubIssue {
+  number: number;
+  title: string;
+  labels: string[];
+  state: string;
+  body: string;
+  url: string;
+  assignees?: string[];
 }

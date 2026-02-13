@@ -79,6 +79,8 @@ export class DatabaseService {
     const id = data.id || randomUUID();
     const now = new Date().toISOString();
 
+    const linkedIssuesJson = data.linkedIssues ? JSON.stringify(data.linkedIssues) : null;
+
     db.insert(tasks)
       .values({
         id,
@@ -89,6 +91,7 @@ export class DatabaseService {
         status: data.status ?? 'idle',
         useWorktree: data.useWorktree ?? true,
         autoApprove: data.autoApprove ?? false,
+        linkedIssues: linkedIssuesJson,
         createdAt: now,
         updatedAt: now,
       })
@@ -99,6 +102,7 @@ export class DatabaseService {
           branch: data.branch,
           path: data.path,
           status: data.status ?? 'idle',
+          linkedIssues: linkedIssuesJson,
           updatedAt: now,
         },
       })
@@ -190,6 +194,15 @@ export class DatabaseService {
   }
 
   private static mapTask(row: typeof tasks.$inferSelect): Task {
+    let linkedIssues: number[] | null = null;
+    if (row.linkedIssues) {
+      try {
+        linkedIssues = JSON.parse(row.linkedIssues);
+      } catch {
+        // Corrupted JSON — ignore
+      }
+    }
+
     return {
       id: row.id,
       projectId: row.projectId,
@@ -199,6 +212,7 @@ export class DatabaseService {
       status: row.status,
       useWorktree: row.useWorktree ?? true,
       autoApprove: row.autoApprove ?? false,
+      linkedIssues,
       archivedAt: row.archivedAt,
       createdAt: row.createdAt ?? '',
       updatedAt: row.updatedAt ?? '',

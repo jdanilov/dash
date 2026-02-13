@@ -83,12 +83,20 @@ export class TerminalSessionManager {
   private onScrollStateChangeCallback: ((isAtBottom: boolean) => void) | null = null;
   private lastEmittedAtBottom = true;
   private wheelHandler: ((e: WheelEvent) => void) | null = null;
+  private initialPrompt?: string;
 
-  constructor(opts: { id: string; cwd: string; autoApprove?: boolean; isDark?: boolean }) {
+  constructor(opts: {
+    id: string;
+    cwd: string;
+    autoApprove?: boolean;
+    isDark?: boolean;
+    initialPrompt?: string;
+  }) {
     this.id = opts.id;
     this.cwd = opts.cwd;
     this.autoApprove = opts.autoApprove ?? false;
     this.isDark = opts.isDark ?? true;
+    this.initialPrompt = opts.initialPrompt;
 
     this.terminal = new Terminal({
       scrollback: 100_000,
@@ -441,6 +449,7 @@ export class TerminalSessionManager {
       autoApprove: this.autoApprove,
       resume,
       isDark: this.isDark,
+      initialPrompt: this.initialPrompt,
     });
 
     if (resp.success) {

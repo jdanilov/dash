@@ -94,6 +94,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setDesktopNotification: (opts: { enabled: boolean }) =>
     ipcRenderer.send('app:setDesktopNotification', opts),
 
+  // GitHub
+  githubCheckAvailable: () => ipcRenderer.invoke('github:check-available'),
+  githubSearchIssues: (cwd: string, query: string) =>
+    ipcRenderer.invoke('github:search-issues', { cwd, query }),
+  githubGetIssue: (cwd: string, number: number) =>
+    ipcRenderer.invoke('github:get-issue', { cwd, number }),
+  githubPostBranchComment: (cwd: string, issueNumber: number, branch: string) =>
+    ipcRenderer.invoke('github:post-branch-comment', { cwd, issueNumber, branch }),
+
   // Git detection
   detectGit: (folderPath: string) => ipcRenderer.invoke('app:detectGit', folderPath),
   detectClaude: () => ipcRenderer.invoke('app:detectClaude'),

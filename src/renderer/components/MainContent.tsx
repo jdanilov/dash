@@ -11,6 +11,7 @@ interface MainContentProps {
   activeTaskId?: string | null;
   taskActivity?: Record<string, 'busy' | 'idle'>;
   onSelectTask?: (id: string) => void;
+  initialPrompt?: string;
 }
 
 export function MainContent({
@@ -21,6 +22,7 @@ export function MainContent({
   activeTaskId,
   taskActivity = {},
   onSelectTask,
+  initialPrompt,
 }: MainContentProps) {
   if (!activeProject) {
     return (
@@ -129,6 +131,7 @@ export function MainContent({
           id={activeTask.id}
           cwd={activeTask.path}
           autoApprove={activeTask.autoApprove}
+          initialPrompt={initialPrompt}
         />
       </div>
     </div>

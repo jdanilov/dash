@@ -27,6 +27,7 @@ export function registerPtyIpc(): void {
         autoApprove?: boolean;
         resume?: boolean;
         isDark?: boolean;
+        initialPrompt?: string;
       },
     ) => {
       try {
