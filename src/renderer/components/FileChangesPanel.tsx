@@ -178,6 +178,26 @@ export function FileChangesPanel({
   const [pushing, setPushing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Track previous file keys to detect newly added files
+  const prevFileKeysRef = useRef<Set<string>>(new Set());
+  const newFileKeysRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!gitStatus) return;
+    const currentKeys = new Set(gitStatus.files.map((f) => `${f.staged ? 's' : 'u'}-${f.path}`));
+    const newKeys = new Set<string>();
+    // Only mark files as new if we had a previous set (skip initial render)
+    if (prevFileKeysRef.current.size > 0) {
+      for (const key of currentKeys) {
+        if (!prevFileKeysRef.current.has(key)) {
+          newKeys.add(key);
+        }
+      }
+    }
+    newFileKeysRef.current = newKeys;
+    prevFileKeysRef.current = currentKeys;
+  }, [gitStatus?.files]);
+
   const totalChanges = gitStatus?.files.length ?? 0;
 
   if (collapsed) {
@@ -219,25 +239,6 @@ export function FileChangesPanel({
 
   const stagedFiles = gitStatus.files.filter((f) => f.staged);
   const unstagedFiles = gitStatus.files.filter((f) => !f.staged);
-
-  // Track previous file keys to detect newly added files
-  const prevFileKeysRef = useRef<Set<string>>(new Set());
-  const newFileKeysRef = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    const currentKeys = new Set(gitStatus.files.map((f) => `${f.staged ? 's' : 'u'}-${f.path}`));
-    const newKeys = new Set<string>();
-    // Only mark files as new if we had a previous set (skip initial render)
-    if (prevFileKeysRef.current.size > 0) {
-      for (const key of currentKeys) {
-        if (!prevFileKeysRef.current.has(key)) {
-          newKeys.add(key);
-        }
-      }
-    }
-    newFileKeysRef.current = newKeys;
-    prevFileKeysRef.current = currentKeys;
-  }, [gitStatus.files]);
   const allStaged = unstagedFiles.length === 0 && stagedFiles.length > 0;
   const noneStaged = stagedFiles.length === 0;
 
