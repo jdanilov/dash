@@ -706,6 +706,16 @@ export function App() {
     }
   }
 
+  async function handleRestoreTask(id: string) {
+    await window.electronAPI.restoreTask(id);
+    for (const [projectId, tasks] of Object.entries(tasksByProject)) {
+      if (tasks.some((t) => t.id === id)) {
+        await loadTasksForProject(projectId);
+        break;
+      }
+    }
+  }
+
   // ── Git Handlers ─────────────────────────────────────────
 
   async function handleStageFile(filePath: string) {
@@ -848,6 +858,7 @@ export function App() {
               onNewTask={handleNewTask}
               onDeleteTask={handleDeleteTask}
               onArchiveTask={handleArchiveTask}
+              onRestoreTask={handleRestoreTask}
               onOpenSettings={() => setShowSettings(true)}
               collapsed={sidebarCollapsed}
               onToggleCollapse={toggleSidebar}

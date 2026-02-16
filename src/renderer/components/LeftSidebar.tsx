@@ -4,6 +4,7 @@ import {
   Plus,
   Trash2,
   Archive,
+  ArchiveRestore,
   Settings,
   GitBranch,
   ChevronRight,
@@ -26,6 +27,7 @@ interface LeftSidebarProps {
   onNewTask: (projectId: string) => void;
   onDeleteTask: (id: string) => void;
   onArchiveTask: (id: string) => void;
+  onRestoreTask: (id: string) => void;
   onOpenSettings: () => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
@@ -44,15 +46,29 @@ export function LeftSidebar({
   onNewTask,
   onDeleteTask,
   onArchiveTask,
+  onRestoreTask,
   onOpenSettings,
   collapsed,
   onToggleCollapse,
   taskActivity,
 }: LeftSidebarProps) {
   const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(new Set());
+  const [collapsedArchived, setCollapsedArchived] = useState<Set<string>>(new Set());
 
   function toggleCollapse(projectId: string) {
     setCollapsedProjects((prev) => {
+      const next = new Set(prev);
+      if (next.has(projectId)) {
+        next.delete(projectId);
+      } else {
+        next.add(projectId);
+      }
+      return next;
+    });
+  }
+
+  function toggleArchivedCollapse(projectId: string) {
+    setCollapsedArchived((prev) => {
       const next = new Set(prev);
       if (next.has(projectId)) {
         next.delete(projectId);
@@ -171,9 +187,10 @@ export function LeftSidebar({
           {projects.map((project) => {
             const isActive = project.id === activeProjectId;
             const isProjectCollapsed = collapsedProjects.has(project.id);
-            const projectTasks = (tasksByProject[project.id] || []).filter(
-              (t) => !t.archivedAt,
-            );
+            const allTasks = tasksByProject[project.id] || [];
+            const projectTasks = allTasks.filter((t) => !t.archivedAt);
+            const archivedTasks = allTasks.filter((t) => t.archivedAt);
+            const isArchivedCollapsed = !collapsedArchived.has(project.id);
 
             return (
               <div key={project.id}>
@@ -320,6 +337,60 @@ export function LeftSidebar({
                         <div className="px-2 py-3 text-center">
                           <p className="text-[10px] text-muted-foreground/40">No tasks yet</p>
                         </div>
+                      )}
+
+                      {/* Archived tasks drawer */}
+                      {archivedTasks.length > 0 && (
+                        <>
+                          <button
+                            onClick={() => toggleArchivedCollapse(project.id)}
+                            className="flex items-center gap-1 w-full pl-3.5 pr-2 py-[5px] rounded-md text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            {isArchivedCollapsed ? (
+                              <ChevronRight size={12} strokeWidth={2} />
+                            ) : (
+                              <ChevronDown size={12} strokeWidth={2} />
+                            )}
+                            <span>Archived ({archivedTasks.length})</span>
+                          </button>
+
+                          <div
+                            className="grid transition-[grid-template-rows] duration-200 ease-in-out"
+                            style={{
+                              gridTemplateRows: isArchivedCollapsed ? '0fr' : '1fr',
+                            }}
+                          >
+                            <div className="overflow-hidden">
+                              <div className="space-y-px">
+                                {archivedTasks.map((task) => (
+                                  <div
+                                    key={task.id}
+                                    className="group/archived flex items-center gap-2 pl-3.5 pr-2 py-[6px] rounded-md text-[13px] text-muted-foreground/50"
+                                  >
+                                    <span className="truncate flex-1">{task.name}</span>
+                                    <div className="hidden group-hover/archived:flex gap-0.5 flex-shrink-0">
+                                      <IconButton
+                                        onClick={() => onRestoreTask(task.id)}
+                                        title="Restore task"
+                                        size="sm"
+                                      >
+                                        <ArchiveRestore size={12} strokeWidth={1.8} />
+                                      </IconButton>
+                                      <IconButton
+                                        onClick={() => onDeleteTask(task.id)}
+                                        title="Delete task"
+                                        variant="destructive"
+                                        size="sm"
+                                      >
+                                        <Trash2 size={12} strokeWidth={1.8} />
+                                      </IconButton>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </>
                       )}
                     </div>
                   </div>
