@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import type { WebContents } from 'electron';
+import { type WebContents, app } from 'electron';
 import { activityMonitor } from './ActivityMonitor';
 import { hookServer } from './HookServer';
 
@@ -289,6 +289,103 @@ export async function startDirectPty(options: {
   return { reattached: false, isDirectSpawn: true, hasTaskContext: !!taskContextMeta, taskContextMeta };
 }
 
+// ---------------------------------------------------------------------------
+// Custom zsh prompt via ZDOTDIR
+// ---------------------------------------------------------------------------
+
+const SHELL_ZSHENV = `\
+# Save our ZDOTDIR so .zshrc can find prompt.zsh
+export __DASH_ZDOTDIR="\${ZDOTDIR}"
+# Source user's .zshenv from HOME
+[[ -f "$HOME/.zshenv" ]] && source "$HOME/.zshenv"
+# Keep ZDOTDIR as our dir so zsh loads .zshrc etc. from here
+ZDOTDIR="\${__DASH_ZDOTDIR}"
+`;
+
+const SHELL_ZPROFILE = `\
+[[ -f "$HOME/.zprofile" ]] && source "$HOME/.zprofile"
+`;
+
+const SHELL_ZSHRC = `\
+# Restore ZDOTDIR to HOME so user config loads normally
+ZDOTDIR="$HOME"
+[[ -f "$HOME/.zshrc" ]] && source "$HOME/.zshrc"
+# Apply our prompt after user config
+source "\${__DASH_ZDOTDIR}/prompt.zsh"
+`;
+
+const SHELL_ZLOGIN = `\
+[[ -f "$HOME/.zlogin" ]] && source "$HOME/.zlogin"
+`;
+
+const SHELL_PROMPT = `\
+# Dash badge-style prompt — uses ANSI 16 colors (themed by xterm.js)
+autoload -Uz vcs_info add-zsh-hook
+
+# Prevent venv from prepending (name) to prompt
+export VIRTUAL_ENV_DISABLE_PROMPT=1
+
+zstyle ':vcs_info:*' enable git
+zstyle ':vcs_info:*' check-for-changes false
+zstyle ':vcs_info:git:*' formats '%b'
+
+__dash_prompt_precmd() {
+  vcs_info
+
+  local dir="%F{12}%~%f"
+  local branch=""
+  if [[ -n "\${vcs_info_msg_0_}" ]]; then
+    local dirty=""
+    # Fast dirty check: staged + unstaged + untracked
+    if ! git diff --quiet HEAD -- 2>/dev/null || [[ -n "$(git ls-files --others --exclude-standard 2>/dev/null | head -1)" ]]; then
+      dirty="%F{3}*%f"
+    fi
+    branch="  %F{5}\${vcs_info_msg_0_}\${dirty}%f"
+  fi
+
+  local venv=""
+  if [[ -n "\${VIRTUAL_ENV}" ]]; then
+    venv="  %F{6}\${VIRTUAL_ENV:t}%f"
+  fi
+
+  PROMPT="\${dir}\${branch}\${venv}
+%F{%(?.2.1)}\\$%f "
+  RPROMPT=""
+}
+
+add-zsh-hook precmd __dash_prompt_precmd
+`;
+
+let shellConfigDir: string | null = null;
+
+function ensureShellConfig(): string {
+  if (shellConfigDir) return shellConfigDir;
+
+  const dir = path.join(app.getPath('userData'), 'shell');
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+
+  const files: Record<string, string> = {
+    '.zshenv': SHELL_ZSHENV,
+    '.zprofile': SHELL_ZPROFILE,
+    '.zshrc': SHELL_ZSHRC,
+    '.zlogin': SHELL_ZLOGIN,
+    'prompt.zsh': SHELL_PROMPT,
+  };
+
+  for (const [name, content] of Object.entries(files)) {
+    const filePath = path.join(dir, name);
+    const existing = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf-8') : null;
+    if (existing !== content) {
+      fs.writeFileSync(filePath, content);
+    }
+  }
+
+  shellConfigDir = dir;
+  return dir;
+}
+
 /**
  * Spawn interactive shell (fallback path).
  */
@@ -316,6 +413,13 @@ export async function startPty(options: {
   // Remove Electron packaging artifacts
   delete env.ELECTRON_RUN_AS_NODE;
   delete env.ELECTRON_NO_ATTACH_CONSOLE;
+  // Enable macOS zsh OSC 7 cwd reporting (sources /etc/zshrc_Apple_Terminal)
+  env.TERM_PROGRAM = 'Apple_Terminal';
+
+  // Inject custom prompt for zsh via ZDOTDIR
+  if (shell.endsWith('/zsh') || shell === 'zsh') {
+    env.ZDOTDIR = ensureShellConfig();
+  }
 
   const proc = pty.spawn(shell, args, {
     name: 'xterm-256color',

@@ -97,6 +97,15 @@ export const DEFAULT_KEYBINDINGS: KeyBindingMap = {
     alt: false,
     key: '`',
   },
+  toggleShellDrawer: {
+    id: 'toggleShellDrawer',
+    label: 'Toggle Shell',
+    category: 'Navigation',
+    mod: true,
+    shift: false,
+    alt: false,
+    key: 'j',
+  },
 };
 
 const STORAGE_KEY = 'keybindings';

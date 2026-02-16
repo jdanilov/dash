@@ -115,7 +115,8 @@
 /* ── Terminal ─────────────────────────────────────────────── */
 
 .terminal-container .xterm {
-  padding: 12px 16px;
+  padding: 0 16px;
+  height: 100%;
 }
 
 /* ── Scrollbar ────────────────────────────────────────────── */
@@ -141,11 +142,33 @@
 
 /* ── Panel Resize Handle ──────────────────────────────────── */
 
-[data-panel-resize-handle-id] {
+/* Horizontal (vertical layout) resize handles */
+[data-panel-group-direction='vertical'] > [data-panel-resize-handle-id] {
   position: relative;
   transition: background-color 150ms ease;
 }
-[data-panel-resize-handle-id]::after {
+[data-panel-group-direction='vertical'] > [data-panel-resize-handle-id]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  height: 3px;
+  width: auto;
+  margin: auto 0;
+  border-radius: 2px;
+  background: transparent;
+  transition: background-color 200ms ease;
+}
+[data-panel-group-direction='vertical'] > [data-panel-resize-handle-id]:hover::after,
+[data-panel-group-direction='vertical'] > [data-panel-resize-handle-id][data-resize-handle-active]::after {
+  background: hsl(var(--primary) / 0.5);
+}
+
+/* Vertical (horizontal layout) resize handles */
+[data-panel-group-direction='horizontal'] > [data-panel-resize-handle-id] {
+  position: relative;
+  transition: background-color 150ms ease;
+}
+[data-panel-group-direction='horizontal'] > [data-panel-resize-handle-id]::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -155,8 +178,8 @@
   background: transparent;
   transition: background-color 200ms ease;
 }
-[data-panel-resize-handle-id]:hover::after,
-[data-panel-resize-handle-id][data-resize-handle-active]::after {
+[data-panel-group-direction='horizontal'] > [data-panel-resize-handle-id]:hover::after,
+[data-panel-group-direction='horizontal'] > [data-panel-resize-handle-id][data-resize-handle-active]::after {
   background: hsl(var(--primary) / 0.5);
 }
 

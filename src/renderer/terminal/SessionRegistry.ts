@@ -5,11 +5,14 @@ interface AttachOptions {
   cwd: string;
   container: HTMLElement;
   autoApprove?: boolean;
+  shellOnly?: boolean;
+  themeId?: string;
 }
 
 class SessionRegistryImpl {
   private sessions = new Map<string, TerminalSessionManager>();
   private _isDark = true;
+  private _themeId = 'default';
 
   getOrCreate(opts: Omit<AttachOptions, 'container'>): TerminalSessionManager {
     let session = this.sessions.get(opts.id);
@@ -19,6 +22,8 @@ class SessionRegistryImpl {
         cwd: opts.cwd,
         autoApprove: opts.autoApprove,
         isDark: this._isDark,
+        shellOnly: opts.shellOnly,
+        themeId: opts.themeId ?? this._themeId,
       });
       this.sessions.set(opts.id, session);
     }
@@ -56,8 +61,14 @@ class SessionRegistryImpl {
 
   setAllThemes(isDark: boolean): void {
     this._isDark = isDark;
+    this.setAllTerminalThemes(this._themeId, isDark);
+  }
+
+  setAllTerminalThemes(themeId: string, isDark: boolean): void {
+    this._themeId = themeId;
+    this._isDark = isDark;
     for (const session of this.sessions.values()) {
-      session.setTheme(isDark);
+      session.setTerminalTheme(themeId, isDark);
     }
   }
 

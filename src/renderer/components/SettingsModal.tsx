@@ -9,6 +9,7 @@ import {
 } from '../keybindings';
 import { NOTIFICATION_SOUNDS, SOUND_LABELS } from '../sounds';
 import type { NotificationSound } from '../sounds';
+import { TERMINAL_THEMES } from '../terminal/terminalThemes';
 
 interface SettingsModalProps {
   theme: 'light' | 'dark';
@@ -19,6 +20,12 @@ interface SettingsModalProps {
   onNotificationSoundChange: (value: NotificationSound) => void;
   desktopNotification: boolean;
   onDesktopNotificationChange: (value: boolean) => void;
+  shellDrawerEnabled: boolean;
+  onShellDrawerEnabledChange: (value: boolean) => void;
+  shellDrawerPosition: 'left' | 'main' | 'right';
+  onShellDrawerPositionChange: (value: 'left' | 'main' | 'right') => void;
+  terminalTheme: string;
+  onTerminalThemeChange: (id: string) => void;
   keybindings: KeyBindingMap;
   onKeybindingsChange: (bindings: KeyBindingMap) => void;
   onClose: () => void;
@@ -109,6 +116,12 @@ export function SettingsModal({
   onNotificationSoundChange,
   desktopNotification,
   onDesktopNotificationChange,
+  shellDrawerEnabled,
+  onShellDrawerEnabledChange,
+  shellDrawerPosition,
+  onShellDrawerPositionChange,
+  terminalTheme,
+  onTerminalThemeChange,
   keybindings,
   onKeybindingsChange,
   onClose,
@@ -315,6 +328,120 @@ export function SettingsModal({
                 </button>
                 <p className="text-[10px] text-muted-foreground/40 mt-2">
                   Notification will include the task name
+                </p>
+              </div>
+
+              {/* Shell Terminal */}
+              <div>
+                <label className="block text-[12px] font-medium text-muted-foreground/70 mb-3">
+                  Shell Terminal
+                </label>
+                <button
+                  onClick={() => onShellDrawerEnabledChange(!shellDrawerEnabled)}
+                  className={`flex items-center gap-3 w-full px-4 py-3 rounded-lg text-[13px] border transition-all duration-150 ${
+                    shellDrawerEnabled
+                      ? 'border-primary/40 bg-primary/8 text-foreground ring-1 ring-primary/20'
+                      : 'border-border/60 text-muted-foreground/60 hover:bg-accent/40 hover:text-foreground'
+                  }`}
+                >
+                  <div
+                    className={`w-8 h-[18px] rounded-full relative transition-colors duration-150 flex-shrink-0 ${
+                      shellDrawerEnabled ? 'bg-primary' : 'bg-border'
+                    }`}
+                  >
+                    <div
+                      className={`absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white shadow-sm transition-transform duration-150 ${
+                        shellDrawerEnabled ? 'translate-x-[16px]' : 'translate-x-[2px]'
+                      }`}
+                    />
+                  </div>
+                  Show shell terminal drawer
+                </button>
+                {shellDrawerEnabled && (
+                  <div className="grid grid-cols-3 gap-2 mt-3">
+                    {([
+                      { value: 'left' as const, label: 'Left Sidebar' },
+                      { value: 'main' as const, label: 'Main Pane' },
+                      { value: 'right' as const, label: 'Right Sidebar' },
+                    ]).map(({ value, label }) => (
+                      <button
+                        key={value}
+                        onClick={() => onShellDrawerPositionChange(value)}
+                        className={`px-3 py-2.5 rounded-lg text-[12px] border transition-all duration-150 ${
+                          shellDrawerPosition === value
+                            ? 'border-primary/40 bg-primary/8 text-foreground ring-1 ring-primary/20 font-medium'
+                            : 'border-border/60 text-muted-foreground/60 hover:bg-accent/40 hover:text-foreground'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <p className="text-[10px] text-muted-foreground/40 mt-2">
+                  Toggle with Cmd+J. Run git, npm, and other commands alongside Claude.
+                </p>
+              </div>
+
+              {/* Terminal Theme */}
+              <div>
+                <label className="block text-[12px] font-medium text-muted-foreground/70 mb-3">
+                  Terminal Theme
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {TERMINAL_THEMES.map((t) => {
+                    const isActive = terminalTheme === t.id;
+                    const bg = t.id === 'default'
+                      ? (theme === 'dark' ? '#1f1f1f' : '#fafafa')
+                      : (t.theme.background || '#000');
+                    const fg = t.id === 'default'
+                      ? (theme === 'dark' ? '#d4d4d4' : '#383a42')
+                      : (t.theme.foreground || '#fff');
+                    const colors = [
+                      t.theme.red || '#f00',
+                      t.theme.green || '#0f0',
+                      t.theme.blue || '#00f',
+                      t.theme.yellow || '#ff0',
+                      t.theme.magenta || '#f0f',
+                      t.theme.cyan || '#0ff',
+                    ];
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => onTerminalThemeChange(t.id)}
+                        className={`flex flex-col gap-1.5 p-2.5 rounded-lg border transition-all duration-150 ${
+                          isActive
+                            ? 'border-primary/40 ring-1 ring-primary/20'
+                            : 'border-border/60 hover:border-border'
+                        }`}
+                      >
+                        <div
+                          className="w-full h-6 rounded flex items-center gap-[3px] px-1.5"
+                          style={{ background: bg }}
+                        >
+                          {colors.map((c, i) => (
+                            <div
+                              key={i}
+                              className="w-2 h-2 rounded-full"
+                              style={{ background: c }}
+                            />
+                          ))}
+                        </div>
+                        <span
+                          className="text-[10px] font-medium truncate w-full text-left"
+                          style={{ color: isActive ? undefined : undefined }}
+                        >
+                          {t.name}
+                          {t.id === 'default' && (
+                            <span className="text-muted-foreground/40"> (auto)</span>
+                          )}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-muted-foreground/40 mt-2">
+                  Applies to both Claude and shell terminals
                 </p>
               </div>
 

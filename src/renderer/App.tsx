@@ -8,6 +8,7 @@ import {
 import { LeftSidebar } from './components/LeftSidebar';
 import { MainContent } from './components/MainContent';
 import { FileChangesPanel } from './components/FileChangesPanel';
+import { ShellDrawerWrapper } from './components/ShellDrawerWrapper';
 import { DiffViewer } from './components/DiffViewer';
 import { TaskModal } from './components/TaskModal';
 import { AddProjectModal } from './components/AddProjectModal';
@@ -56,6 +57,19 @@ export function App() {
   const [desktopNotification, setDesktopNotification] = useState(() => {
     return localStorage.getItem('desktopNotification') === 'true';
   });
+  const [shellDrawerEnabled, setShellDrawerEnabled] = useState(() => {
+    const stored = localStorage.getItem('shellDrawerEnabled');
+    return stored === null ? true : stored === 'true';
+  });
+  const [shellDrawerCollapsed, setShellDrawerCollapsed] = useState(() => {
+    return localStorage.getItem('shellDrawerCollapsed') === 'true';
+  });
+  const [shellDrawerPosition, setShellDrawerPosition] = useState<'left' | 'main' | 'right'>(() => {
+    return (localStorage.getItem('shellDrawerPosition') as 'left' | 'main' | 'right') || 'right';
+  });
+  const [terminalTheme, setTerminalTheme] = useState(() => {
+    return localStorage.getItem('terminalTheme') || 'default';
+  });
   // Sync desktop notification settings to main process
   useEffect(() => {
     window.electronAPI.setDesktopNotification?.({
@@ -87,8 +101,10 @@ export function App() {
 
   const sidebarPanelRef = useRef<ImperativePanelHandle>(null);
   const changesPanelRef = useRef<ImperativePanelHandle>(null);
+  const shellDrawerPanelRef = useRef<ImperativePanelHandle>(null);
   const [sidebarAnimating, setSidebarAnimating] = useState(false);
   const [changesAnimating, setChangesAnimating] = useState(false);
+  const [shellDrawerAnimating, setShellDrawerAnimating] = useState(false);
   const fileWatcherCleanup = useRef<(() => void) | null>(null);
   const gitPollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null;
@@ -213,8 +229,8 @@ export function App() {
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
     document.documentElement.classList.toggle('light', theme === 'light');
-    sessionRegistry.setAllThemes(theme === 'dark');
-  }, [theme]);
+    sessionRegistry.setAllTerminalThemes(terminalTheme, theme === 'dark');
+  }, [theme, terminalTheme]);
 
   // Git: watch active task directory + poll
   useEffect(() => {
@@ -346,6 +362,10 @@ export function App() {
         ) as HTMLTextAreaElement | null;
         term?.focus();
       }
+      if (keybindings.toggleShellDrawer && matchesBinding(e, keybindings.toggleShellDrawer)) {
+        e.preventDefault();
+        toggleShellDrawer();
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -395,6 +415,18 @@ export function App() {
       panel.collapse();
     }
   }, [changesPanelCollapsed]);
+
+  const toggleShellDrawer = useCallback(() => {
+    if (!shellDrawerEnabled) return;
+    const panel = shellDrawerPanelRef.current;
+    if (!panel) return;
+    setShellDrawerAnimating(true);
+    if (shellDrawerCollapsed) {
+      panel.expand();
+    } else {
+      panel.collapse();
+    }
+  }, [shellDrawerEnabled, shellDrawerCollapsed]);
 
   // ── Data Loading ─────────────────────────────────────────
 
@@ -653,6 +685,9 @@ export function App() {
       }
     }
 
+    // Clean up shell terminal session
+    sessionRegistry.dispose(`shell:${task.id}`);
+
     await window.electronAPI.deleteTask(task.id);
     if (activeTaskId === task.id) {
       setActiveTaskId(null);
@@ -778,39 +813,79 @@ export function App() {
             setTimeout(() => setSidebarAnimating(false), 200);
           }}
         >
-          <LeftSidebar
-            projects={projects}
-            activeProjectId={activeProjectId}
-            onSelectProject={setActiveProjectId}
-            onOpenFolder={() => {
-              setCloneStatus({ loading: false, error: null });
-              setShowAddProjectModal(true);
+          <ShellDrawerWrapper
+            enabled={shellDrawerEnabled && shellDrawerPosition === 'left' && !sidebarCollapsed}
+            taskId={activeTask?.id ?? null}
+            cwd={activeTask?.path ?? null}
+            collapsed={shellDrawerCollapsed}
+            label={activeTask?.useWorktree ? 'Worktree' : 'Terminal'}
+            panelRef={shellDrawerPanelRef}
+            animating={shellDrawerAnimating}
+            onCollapse={() => {
+              setShellDrawerCollapsed(true);
+              localStorage.setItem('shellDrawerCollapsed', 'true');
+              setTimeout(() => setShellDrawerAnimating(false), 200);
             }}
-            onDeleteProject={handleDeleteProject}
-            tasksByProject={tasksByProject}
-            activeTaskId={activeTaskId}
-            onSelectTask={handleSelectTask}
-            onNewTask={handleNewTask}
-            onDeleteTask={handleDeleteTask}
-            onArchiveTask={handleArchiveTask}
-            onOpenSettings={() => setShowSettings(true)}
-            collapsed={sidebarCollapsed}
-            onToggleCollapse={toggleSidebar}
-            taskActivity={taskActivity}
-          />
+            onExpand={() => {
+              setShellDrawerCollapsed(false);
+              localStorage.setItem('shellDrawerCollapsed', 'false');
+              setTimeout(() => setShellDrawerAnimating(false), 200);
+            }}
+          >
+            <LeftSidebar
+              projects={projects}
+              activeProjectId={activeProjectId}
+              onSelectProject={setActiveProjectId}
+              onOpenFolder={() => {
+                setCloneStatus({ loading: false, error: null });
+                setShowAddProjectModal(true);
+              }}
+              onDeleteProject={handleDeleteProject}
+              tasksByProject={tasksByProject}
+              activeTaskId={activeTaskId}
+              onSelectTask={handleSelectTask}
+              onNewTask={handleNewTask}
+              onDeleteTask={handleDeleteTask}
+              onArchiveTask={handleArchiveTask}
+              onOpenSettings={() => setShowSettings(true)}
+              collapsed={sidebarCollapsed}
+              onToggleCollapse={toggleSidebar}
+              taskActivity={taskActivity}
+            />
+          </ShellDrawerWrapper>
         </Panel>
         <PanelResizeHandle disabled={sidebarCollapsed} className="w-[1px] bg-border/40" />
 
         <Panel className={sidebarAnimating || changesAnimating ? 'panel-transition' : ''} minSize={35}>
-          <MainContent
-            activeTask={activeTask}
-            activeProject={activeProject}
-            sidebarCollapsed={sidebarCollapsed}
-            tasks={activeProjectTasks}
-            activeTaskId={activeTaskId}
-            taskActivity={taskActivity}
-            onSelectTask={setActiveTaskId}
-          />
+          <ShellDrawerWrapper
+            enabled={shellDrawerEnabled && shellDrawerPosition === 'main'}
+            taskId={activeTask?.id ?? null}
+            cwd={activeTask?.path ?? null}
+            collapsed={shellDrawerCollapsed}
+            label={activeTask?.useWorktree ? 'Worktree' : 'Terminal'}
+            panelRef={shellDrawerPanelRef}
+            animating={shellDrawerAnimating}
+            onCollapse={() => {
+              setShellDrawerCollapsed(true);
+              localStorage.setItem('shellDrawerCollapsed', 'true');
+              setTimeout(() => setShellDrawerAnimating(false), 200);
+            }}
+            onExpand={() => {
+              setShellDrawerCollapsed(false);
+              localStorage.setItem('shellDrawerCollapsed', 'false');
+              setTimeout(() => setShellDrawerAnimating(false), 200);
+            }}
+          >
+            <MainContent
+              activeTask={activeTask}
+              activeProject={activeProject}
+              sidebarCollapsed={sidebarCollapsed}
+              tasks={activeProjectTasks}
+              activeTaskId={activeTaskId}
+              taskActivity={taskActivity}
+              onSelectTask={setActiveTaskId}
+            />
+          </ShellDrawerWrapper>
         </Panel>
 
         {activeTask && (
@@ -835,24 +910,49 @@ export function App() {
                 setTimeout(() => setChangesAnimating(false), 200);
               }}
             >
-              <FileChangesPanel
-                gitStatus={gitStatus}
-                loading={gitLoading}
-                onStageFile={handleStageFile}
-                onUnstageFile={handleUnstageFile}
-                onStageAll={handleStageAll}
-                onUnstageAll={handleUnstageAll}
-                onDiscardFile={handleDiscardFile}
-                onViewDiff={handleViewDiff}
-                onCommit={handleCommit}
-                onPush={handlePush}
-                collapsed={changesPanelCollapsed}
-                onToggleCollapse={toggleChangesPanel}
-              />
+              <ShellDrawerWrapper
+                enabled={shellDrawerEnabled && shellDrawerPosition === 'right' && !changesPanelCollapsed}
+                taskId={activeTask?.id ?? null}
+                cwd={activeTask?.path ?? null}
+                collapsed={shellDrawerCollapsed}
+                panelRef={shellDrawerPanelRef}
+                animating={shellDrawerAnimating}
+                onCollapse={() => {
+                  setShellDrawerCollapsed(true);
+                  localStorage.setItem('shellDrawerCollapsed', 'true');
+                  setTimeout(() => setShellDrawerAnimating(false), 200);
+                }}
+                onExpand={() => {
+                  setShellDrawerCollapsed(false);
+                  localStorage.setItem('shellDrawerCollapsed', 'false');
+                  setTimeout(() => setShellDrawerAnimating(false), 200);
+                }}
+              >
+                <FileChangesPanel
+                  gitStatus={gitStatus}
+                  loading={gitLoading}
+                  onStageFile={handleStageFile}
+                  onUnstageFile={handleUnstageFile}
+                  onStageAll={handleStageAll}
+                  onUnstageAll={handleUnstageAll}
+                  onDiscardFile={handleDiscardFile}
+                  onViewDiff={handleViewDiff}
+                  onCommit={handleCommit}
+                  onPush={handlePush}
+                  collapsed={changesPanelCollapsed}
+                  onToggleCollapse={toggleChangesPanel}
+                />
+              </ShellDrawerWrapper>
             </Panel>
           </>
         )}
       </PanelGroup>
+
+      {/* Global footer */}
+      <div
+        className="h-6 flex-shrink-0 border-t border-border/40"
+        style={{ background: 'hsl(var(--surface-1))' }}
+      />
 
       {showAddProjectModal && (
         <AddProjectModal
@@ -879,7 +979,23 @@ export function App() {
           onThemeChange={(t) => {
             setTheme(t);
             localStorage.setItem('theme', t);
-            sessionRegistry.setAllThemes(t === 'dark');
+            sessionRegistry.setAllTerminalThemes(terminalTheme, t === 'dark');
+          }}
+          shellDrawerEnabled={shellDrawerEnabled}
+          onShellDrawerEnabledChange={(v) => {
+            setShellDrawerEnabled(v);
+            localStorage.setItem('shellDrawerEnabled', String(v));
+          }}
+          shellDrawerPosition={shellDrawerPosition}
+          onShellDrawerPositionChange={(v) => {
+            setShellDrawerPosition(v);
+            localStorage.setItem('shellDrawerPosition', v);
+          }}
+          terminalTheme={terminalTheme}
+          onTerminalThemeChange={(id) => {
+            setTerminalTheme(id);
+            localStorage.setItem('terminalTheme', id);
+            sessionRegistry.setAllTerminalThemes(id, theme === 'dark');
           }}
           diffContextLines={diffContextLines}
           onDiffContextLinesChange={(v) => {

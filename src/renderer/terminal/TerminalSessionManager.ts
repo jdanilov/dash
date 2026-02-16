@@ -3,57 +3,10 @@ import { FitAddon } from '@xterm/addon-fit';
 import { SerializeAddon } from '@xterm/addon-serialize';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import type { TerminalSnapshot } from '../../shared/types';
+import { darkTheme, lightTheme, resolveTheme } from './terminalThemes';
 
 const SNAPSHOT_DEBOUNCE_MS = 10_000;
 const MEMORY_LIMIT_BYTES = 128 * 1024 * 1024; // 128MB soft limit
-
-const darkTheme = {
-  background: '#1f1f1f',
-  foreground: '#d4d4d4',
-  cursor: '#d4d4d4',
-  cursorAccent: '#1f1f1f',
-  selectionBackground: '#3a3a5a',
-  black: '#000000',
-  red: '#e06c75',
-  green: '#98c379',
-  yellow: '#e5c07b',
-  blue: '#61afef',
-  magenta: '#c678dd',
-  cyan: '#56b6c2',
-  white: '#d4d4d4',
-  brightBlack: '#5c6370',
-  brightRed: '#e06c75',
-  brightGreen: '#98c379',
-  brightYellow: '#e5c07b',
-  brightBlue: '#61afef',
-  brightMagenta: '#c678dd',
-  brightCyan: '#56b6c2',
-  brightWhite: '#ffffff',
-};
-
-const lightTheme = {
-  background: '#fafafa',
-  foreground: '#383a42',
-  cursor: '#383a42',
-  cursorAccent: '#fafafa',
-  selectionBackground: '#bfceff',
-  black: '#383a42',
-  red: '#e45649',
-  green: '#50a14f',
-  yellow: '#c18401',
-  blue: '#4078f2',
-  magenta: '#a626a4',
-  cyan: '#0184bc',
-  white: '#a0a1a7',
-  brightBlack: '#696c77',
-  brightRed: '#e45649',
-  brightGreen: '#50a14f',
-  brightYellow: '#c18401',
-  brightBlue: '#4078f2',
-  brightMagenta: '#a626a4',
-  brightCyan: '#0184bc',
-  brightWhite: '#ffffff',
-};
 
 export class TerminalSessionManager {
   readonly id: string;
@@ -83,23 +36,32 @@ export class TerminalSessionManager {
   private onScrollStateChangeCallback: ((isAtBottom: boolean) => void) | null = null;
   private lastEmittedAtBottom = true;
   private wheelHandler: ((e: WheelEvent) => void) | null = null;
+  private _currentCwd: string;
+  private onCwdChangeCallback: ((cwd: string) => void) | null = null;
+  readonly shellOnly: boolean;
+  private themeId: string;
   constructor(opts: {
     id: string;
     cwd: string;
     autoApprove?: boolean;
     isDark?: boolean;
+    shellOnly?: boolean;
+    themeId?: string;
   }) {
     this.id = opts.id;
     this.cwd = opts.cwd;
+    this._currentCwd = opts.cwd;
     this.autoApprove = opts.autoApprove ?? false;
     this.isDark = opts.isDark ?? true;
+    this.shellOnly = opts.shellOnly ?? false;
+    this.themeId = opts.themeId ?? 'default';
 
     this.terminal = new Terminal({
       scrollback: 100_000,
       fontSize: 13,
       lineHeight: 1.2,
       allowProposedApi: true,
-      theme: this.isDark ? darkTheme : lightTheme,
+      theme: resolveTheme(this.themeId, this.isDark),
       cursorBlink: true,
       linkHandler: {
         activate: (_event, uri) => {
@@ -118,6 +80,23 @@ export class TerminalSessionManager {
         window.electronAPI.openExternal(uri);
       }),
     );
+
+    // Track cwd via OSC 7 (emitted by zsh on macOS by default)
+    this.terminal.parser.registerOscHandler(7, (data) => {
+      try {
+        const url = new URL(data);
+        if (url.protocol === 'file:') {
+          const path = decodeURIComponent(url.pathname);
+          if (path && path !== this._currentCwd) {
+            this._currentCwd = path;
+            this.onCwdChangeCallback?.(path);
+          }
+        }
+      } catch {
+        // Ignore malformed OSC 7 data
+      }
+      return false;
+    });
 
     this.terminal.attachCustomKeyEventHandler((e) => {
       if (e.type !== 'keydown') return true;
@@ -232,78 +211,111 @@ export class TerminalSessionManager {
     let reattached = false;
     let isDirectSpawn = false;
     if (!this.ptyStarted) {
-      // Check for Claude session to determine resume flag
-      let resume = false;
-      let existingSnapshot: TerminalSnapshot | null = null;
-      try {
-        const snapshotResp = await window.electronAPI.ptyGetSnapshot(this.id);
-        if (snapshotResp.success && snapshotResp.data) {
-          existingSnapshot = snapshotResp.data;
-          // Only check for session if we have a snapshot (nothing to resume without one)
-          const sessionResp = await window.electronAPI.ptyHasClaudeSession(this.cwd);
-          if (sessionResp.success && sessionResp.data) {
-            resume = true;
-          }
-        }
-      } catch {
-        // Best effort
-      }
-      if (gen !== this.attachGeneration) return;
-
-      let result = await this.startPty(resume);
-      if (gen !== this.attachGeneration) return;
-
-      // If we reattached to an existing direct-spawn PTY (e.g. after CMD+R),
-      // kill it and spawn fresh with resume. Ink's internal cursor state can't
-      // be recovered via SIGWINCH, but a fresh Claude Code process with
-      // --continue --resume preserves the session and gives a clean TUI init.
-      if (result.reattached && result.isDirectSpawn) {
-        this._isRestarting = true;
-        this.readyFired = false;
-        this.onRestartingCallback?.();
-        window.electronAPI.ptyKill(this.id);
-        this.ptyStarted = false;
-        result = await this.startPty(resume);
-        if (gen !== this.attachGeneration) return;
-
-        // Fallback: hide overlay after 10s even if no data arrives
-        this.readyFallbackTimer = setTimeout(() => {
-          this.fireReady();
-        }, 10_000);
-      }
-
-      isDirectSpawn = result.isDirectSpawn;
-
-      // Show previous snapshot for visual context while Claude starts
-      if (existingSnapshot && !result.reattached) {
+      if (this.shellOnly) {
+        // Shell-only mode: just spawn a shell, skip Claude CLI
+        let existingSnapshot: TerminalSnapshot | null = null;
         try {
-          this.terminal.write(existingSnapshot.data);
+          const snapshotResp = await window.electronAPI.ptyGetSnapshot(this.id);
+          if (snapshotResp.success && snapshotResp.data) {
+            existingSnapshot = snapshotResp.data;
+          }
         } catch {
           // Best effort
         }
-      }
+        if (gen !== this.attachGeneration) return;
 
-      // Show info line when issue context was injected via SessionStart hook
-      if (result.taskContextMeta && !result.reattached && !resume) {
-        const { issueNumbers, gitRemote } = result.taskContextMeta;
-        const issueLabels = issueNumbers.map((num) => {
-          const url = gitRemote ? this.issueUrl(gitRemote, num) : null;
-          // OSC 8 hyperlink: \x1b]8;;URL\x07TEXT\x1b]8;;\x07
-          return url
-            ? `\x1b]8;;${url}\x07#${num}\x1b]8;;\x07`
-            : `#${num}`;
+        const dims = this.fitAddon.proposeDimensions();
+        const shellResp = await window.electronAPI.ptyStart({
+          id: this.id,
+          cwd: this.cwd,
+          cols: dims?.cols ?? 120,
+          rows: dims?.rows ?? 30,
         });
-        this.terminal.write(
-          `\x1b[2m\x1b[36m● Issue context injected: ${issueLabels.join(', ')}\x1b[0m\r\n`,
-        );
+        if (gen !== this.attachGeneration) return;
+        reattached = shellResp.data?.reattached ?? false;
+        this.ptyStarted = true;
+
+        if (existingSnapshot && !reattached) {
+          try {
+            this.terminal.write(existingSnapshot.data);
+          } catch {
+            // Best effort
+          }
+        }
+      } else {
+        // Claude Code mode: try direct spawn, fall back to shell
+        let resume = false;
+        let existingSnapshot: TerminalSnapshot | null = null;
+        try {
+          const snapshotResp = await window.electronAPI.ptyGetSnapshot(this.id);
+          if (snapshotResp.success && snapshotResp.data) {
+            existingSnapshot = snapshotResp.data;
+            // Only check for session if we have a snapshot (nothing to resume without one)
+            const sessionResp = await window.electronAPI.ptyHasClaudeSession(this.cwd);
+            if (sessionResp.success && sessionResp.data) {
+              resume = true;
+            }
+          }
+        } catch {
+          // Best effort
+        }
+        if (gen !== this.attachGeneration) return;
+
+        let result = await this.startPty(resume);
+        if (gen !== this.attachGeneration) return;
+
+        // If we reattached to an existing direct-spawn PTY (e.g. after CMD+R),
+        // kill it and spawn fresh with resume. Ink's internal cursor state can't
+        // be recovered via SIGWINCH, but a fresh Claude Code process with
+        // --continue --resume preserves the session and gives a clean TUI init.
+        if (result.reattached && result.isDirectSpawn) {
+          this._isRestarting = true;
+          this.readyFired = false;
+          this.onRestartingCallback?.();
+          window.electronAPI.ptyKill(this.id);
+          this.ptyStarted = false;
+          result = await this.startPty(resume);
+          if (gen !== this.attachGeneration) return;
+
+          // Fallback: hide overlay after 10s even if no data arrives
+          this.readyFallbackTimer = setTimeout(() => {
+            this.fireReady();
+          }, 10_000);
+        }
+
+        isDirectSpawn = result.isDirectSpawn;
+
+        // Show previous snapshot for visual context while Claude starts
+        if (existingSnapshot && !result.reattached) {
+          try {
+            this.terminal.write(existingSnapshot.data);
+          } catch {
+            // Best effort
+          }
+        }
+
+        // Show info line when issue context was injected via SessionStart hook
+        if (result.taskContextMeta && !result.reattached && !resume) {
+          const { issueNumbers, gitRemote } = result.taskContextMeta;
+          const issueLabels = issueNumbers.map((num) => {
+            const url = gitRemote ? this.issueUrl(gitRemote, num) : null;
+            // OSC 8 hyperlink: \x1b]8;;URL\x07TEXT\x1b]8;;\x07
+            return url
+              ? `\x1b]8;;${url}\x07#${num}\x1b]8;;\x07`
+              : `#${num}`;
+          });
+          this.terminal.write(
+            `\x1b[2m\x1b[36m● Issue context injected: ${issueLabels.join(', ')}\x1b[0m\r\n`,
+          );
+        }
       }
     }
 
     {
       // Hide xterm's real cursor for direct spawns — Ink renders its own
       // character cursor in the input field; xterm's cursor just blinks
-      // at the wrong position (end of buffer).
-      if (isDirectSpawn) {
+      // at the wrong position (end of buffer). Skip for shell-only.
+      if (isDirectSpawn && !this.shellOnly) {
         this.terminal.write('\x1b[?25l');
       }
 
@@ -349,6 +361,7 @@ export class TerminalSessionManager {
     this.onRestartingCallback = null;
     this.onReadyCallback = null;
     this.onScrollStateChangeCallback = null;
+    this.onCwdChangeCallback = null;
     this._isRestarting = false;
 
     // Stop resize observer
@@ -408,6 +421,14 @@ export class TerminalSessionManager {
     this.terminal.focus();
   }
 
+  get currentCwd(): string {
+    return this._currentCwd;
+  }
+
+  onCwdChange(cb: ((cwd: string) => void) | null) {
+    this.onCwdChangeCallback = cb;
+  }
+
   onScrollStateChange(cb: (isAtBottom: boolean) => void) {
     this.onScrollStateChangeCallback = cb;
   }
@@ -434,8 +455,13 @@ export class TerminalSessionManager {
   }
 
   setTheme(isDark: boolean) {
+    this.setTerminalTheme(this.themeId, isDark);
+  }
+
+  setTerminalTheme(themeId: string, isDark: boolean) {
+    this.themeId = themeId;
     this.isDark = isDark;
-    this.terminal.options.theme = isDark ? darkTheme : lightTheme;
+    this.terminal.options.theme = resolveTheme(themeId, isDark);
 
     // Trigger SIGWINCH so the TUI redraws with the new ANSI palette.
     // rows+1 then rows forces the PTY process to handle SIGWINCH.
