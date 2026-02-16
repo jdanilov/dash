@@ -821,6 +821,7 @@ export function App() {
             label={activeTask?.useWorktree ? 'Worktree' : 'Terminal'}
             panelRef={shellDrawerPanelRef}
             animating={shellDrawerAnimating}
+            onAnimate={() => setShellDrawerAnimating(true)}
             onCollapse={() => {
               setShellDrawerCollapsed(true);
               localStorage.setItem('shellDrawerCollapsed', 'true');
@@ -865,6 +866,7 @@ export function App() {
             label={activeTask?.useWorktree ? 'Worktree' : 'Terminal'}
             panelRef={shellDrawerPanelRef}
             animating={shellDrawerAnimating}
+            onAnimate={() => setShellDrawerAnimating(true)}
             onCollapse={() => {
               setShellDrawerCollapsed(true);
               localStorage.setItem('shellDrawerCollapsed', 'true');
@@ -917,6 +919,7 @@ export function App() {
                 collapsed={shellDrawerCollapsed}
                 panelRef={shellDrawerPanelRef}
                 animating={shellDrawerAnimating}
+                onAnimate={() => setShellDrawerAnimating(true)}
                 onCollapse={() => {
                   setShellDrawerCollapsed(true);
                   localStorage.setItem('shellDrawerCollapsed', 'true');

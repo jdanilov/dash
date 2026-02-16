@@ -15,6 +15,7 @@ interface ShellDrawerWrapperProps {
   label?: string;
   panelRef: React.RefObject<ImperativePanelHandle>;
   animating: boolean;
+  onAnimate: () => void;
   onCollapse: () => void;
   onExpand: () => void;
   children: React.ReactNode;
@@ -28,6 +29,7 @@ export function ShellDrawerWrapper({
   label,
   panelRef,
   animating,
+  onAnimate,
   onCollapse,
   onExpand,
   children,
@@ -62,8 +64,8 @@ export function ShellDrawerWrapper({
           cwd={cwd}
           collapsed={collapsed}
           label={label}
-          onCollapse={() => panelRef.current?.collapse()}
-          onExpand={() => panelRef.current?.expand()}
+          onCollapse={() => { onAnimate(); panelRef.current?.collapse(); }}
+          onExpand={() => { onAnimate(); panelRef.current?.expand(); }}
         />
       </Panel>
     </PanelGroup>
