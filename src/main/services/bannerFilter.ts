@@ -21,59 +21,51 @@ const LINE2_RE = new RegExp(`\\u259D${B}\\u259C${B}\\u2588${B}\\u2588${B}\\u2588
 // Shield line 3: ▘▘ ▝▝
 const LINE3_RE = new RegExp(`\\u2598${B}\\u2598${B}\\u259D${B}\\u259D`);
 
+const BUFFER_MAX_BYTES = 16384;
+
 /**
  * Creates a filter that replaces the Claude shield with a block-art "7" in early PTY output.
  * The "7" is rendered in Claude's orange/terracotta color to match the original shield.
- * Stops scanning after all 3 shield lines are replaced or 32KB of data has passed.
+ *
+ * Buffers early PTY data and checks for all 3 shield line patterns. If all are found,
+ * replacements are applied and the modified buffer is flushed. If the buffer exceeds 16KB
+ * without matching all 3 patterns, the original data is flushed unchanged — gracefully
+ * falling back if the banner format changes in a new Claude Code version.
  */
 export function createBannerFilter(forward: (data: string) => void): (data: string) => void {
-  let line1Done = false;
-  let line2Done = false;
-  let line3Done = false;
-  let bytesSeen = 0;
+  let buffer = '';
+  let done = false;
+
+  function flush(content: string) {
+    done = true;
+    buffer = '';
+    forward(content);
+  }
 
   return (data: string) => {
-    if ((line1Done && line2Done && line3Done) || bytesSeen > 32768) {
+    if (done) {
       forward(data);
       return;
     }
 
-    bytesSeen += data.length;
-    let result = data;
+    buffer += data;
 
-    // Line 1: ▛▘▌▌▌▌  ▀▌▌
-    if (!line1Done) {
-      const replaced = result.replace(LINE1_RE, () => {
-        return `${SEVEN_COLOR}\u259B\u2598\u258C\u258C\u258C\u258C  \u2580\u258C\u258C${RESET}`;
-      });
-      if (replaced !== result) {
-        line1Done = true;
-        result = replaced;
-      }
+    // Check if all 3 shield patterns are present
+    const hasAll = LINE1_RE.test(buffer) && LINE2_RE.test(buffer) && LINE3_RE.test(buffer);
+
+    if (hasAll) {
+      // All shield lines detected — apply replacements and flush
+      let result = buffer;
+      result = result.replace(LINE1_RE, `${SEVEN_COLOR}\u259B\u2598\u258C\u258C\u258C\u258C  \u2580\u258C\u258C${RESET}`);
+      result = result.replace(LINE2_RE, `${SEVEN_COLOR}\u2584\u258C\u2599\u258C\u259A\u2598\u2597 \u2588\u258C\u258C${RESET} `);
+      result = result.replace(LINE3_RE, `${SEVEN_COLOR}\u2584\u258C${RESET}      `);
+      flush(result);
+      return;
     }
 
-    // Line 2: ▄▌▙▌▚▘▗ █▌▌
-    if (!line2Done) {
-      const replaced = result.replace(LINE2_RE, () => {
-        return `${SEVEN_COLOR}\u2584\u258C\u2599\u258C\u259A\u2598\u2597 \u2588\u258C\u258C${RESET} `;
-      });
-      if (replaced !== result) {
-        line2Done = true;
-        result = replaced;
-      }
+    // Buffer limit exceeded without full match — flush original unchanged
+    if (buffer.length > BUFFER_MAX_BYTES) {
+      flush(buffer);
     }
-
-    // Line 3:   ▄▌
-    if (!line3Done) {
-      const replaced = result.replace(LINE3_RE, () => {
-        return `${SEVEN_COLOR}\u2584\u258C${RESET}      `;
-      });
-      if (replaced !== result) {
-        line3Done = true;
-        result = replaced;
-      }
-    }
-
-    forward(result);
   };
 }
