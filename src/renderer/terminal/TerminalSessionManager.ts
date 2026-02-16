@@ -479,7 +479,12 @@ export class TerminalSessionManager {
   setTerminalTheme(themeId: string, isDark: boolean) {
     this.themeId = themeId;
     this.isDark = isDark;
-    this.terminal.options.theme = resolveTheme(themeId, isDark);
+    try {
+      this.terminal.options.theme = resolveTheme(themeId, isDark);
+    } catch {
+      // WebGL addon may crash if GPU context is lost (e.g. hidden terminal).
+      // Re-apply after reloading the addon on next attach.
+    }
 
     // Trigger SIGWINCH so the TUI redraws with the new ANSI palette.
     // rows+1 then rows forces the PTY process to handle SIGWINCH.

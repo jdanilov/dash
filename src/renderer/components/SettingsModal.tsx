@@ -126,7 +126,7 @@ export function SettingsModal({
   onKeybindingsChange,
   onClose,
 }: SettingsModalProps) {
-  const [tab, setTab] = useState<'general' | 'keybindings' | 'connections'>('general');
+  const [tab, setTab] = useState<'general' | 'appearance' | 'keybindings' | 'connections'>('general');
   const [claudeInfo, setClaudeInfo] = useState<{
     installed: boolean;
     version: string | null;
@@ -193,7 +193,7 @@ export function SettingsModal({
 
         {/* Tabs */}
         <div className="flex gap-0 px-5 border-b border-border/40">
-          {(['general', 'keybindings', 'connections'] as const).map((t) => (
+          {(['general', 'appearance', 'keybindings', 'connections'] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -212,37 +212,6 @@ export function SettingsModal({
         <div className="p-5 overflow-y-auto flex-1">
           {tab === 'general' && (
             <div className="space-y-6 animate-fade-in">
-              {/* Theme */}
-              <div>
-                <label className="block text-[12px] font-medium text-muted-foreground/70 mb-3">
-                  Appearance
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => onThemeChange('light')}
-                    className={`flex items-center gap-2.5 px-4 py-3 rounded-lg text-[13px] border transition-all duration-150 ${
-                      theme === 'light'
-                        ? 'border-primary/40 bg-primary/8 text-foreground ring-1 ring-primary/20'
-                        : 'border-border/60 text-muted-foreground/60 hover:bg-accent/40 hover:text-foreground'
-                    }`}
-                  >
-                    <Sun size={15} strokeWidth={1.8} />
-                    Light
-                  </button>
-                  <button
-                    onClick={() => onThemeChange('dark')}
-                    className={`flex items-center gap-2.5 px-4 py-3 rounded-lg text-[13px] border transition-all duration-150 ${
-                      theme === 'dark'
-                        ? 'border-primary/40 bg-primary/8 text-foreground ring-1 ring-primary/20'
-                        : 'border-border/60 text-muted-foreground/60 hover:bg-accent/40 hover:text-foreground'
-                    }`}
-                  >
-                    <Moon size={15} strokeWidth={1.8} />
-                    Dark
-                  </button>
-                </div>
-              </div>
-
               {/* Diff Context */}
               <div>
                 <label className="block text-[12px] font-medium text-muted-foreground/70 mb-3">
@@ -383,6 +352,51 @@ export function SettingsModal({
                 </p>
               </div>
 
+              {/* Version */}
+              <div>
+                <label className="block text-[12px] font-medium text-muted-foreground/70 mb-1.5">
+                  Version
+                </label>
+                <p className="text-[13px] text-muted-foreground/50 font-mono">
+                  {appVersion || '...'}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {tab === 'appearance' && (
+            <div className="space-y-6 animate-fade-in">
+              {/* App Theme */}
+              <div>
+                <label className="block text-[12px] font-medium text-muted-foreground/70 mb-3">
+                  App Theme
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => onThemeChange('light')}
+                    className={`flex items-center gap-2.5 px-4 py-3 rounded-lg text-[13px] border transition-all duration-150 ${
+                      theme === 'light'
+                        ? 'border-primary/40 bg-primary/8 text-foreground ring-1 ring-primary/20'
+                        : 'border-border/60 text-muted-foreground/60 hover:bg-accent/40 hover:text-foreground'
+                    }`}
+                  >
+                    <Sun size={15} strokeWidth={1.8} />
+                    Light
+                  </button>
+                  <button
+                    onClick={() => onThemeChange('dark')}
+                    className={`flex items-center gap-2.5 px-4 py-3 rounded-lg text-[13px] border transition-all duration-150 ${
+                      theme === 'dark'
+                        ? 'border-primary/40 bg-primary/8 text-foreground ring-1 ring-primary/20'
+                        : 'border-border/60 text-muted-foreground/60 hover:bg-accent/40 hover:text-foreground'
+                    }`}
+                  >
+                    <Moon size={15} strokeWidth={1.8} />
+                    Dark
+                  </button>
+                </div>
+              </div>
+
               {/* Terminal Theme */}
               <div>
                 <label className="block text-[12px] font-medium text-muted-foreground/70 mb-3">
@@ -394,9 +408,6 @@ export function SettingsModal({
                     const bg = t.id === 'default'
                       ? (theme === 'dark' ? '#1f1f1f' : '#fafafa')
                       : (t.theme.background || '#000');
-                    const fg = t.id === 'default'
-                      ? (theme === 'dark' ? '#d4d4d4' : '#383a42')
-                      : (t.theme.foreground || '#fff');
                     const colors = [
                       t.theme.red || '#f00',
                       t.theme.green || '#0f0',
@@ -427,10 +438,7 @@ export function SettingsModal({
                             />
                           ))}
                         </div>
-                        <span
-                          className="text-[10px] font-medium truncate w-full text-left"
-                          style={{ color: isActive ? undefined : undefined }}
-                        >
+                        <span className="text-[10px] font-medium truncate w-full text-left">
                           {t.name}
                           {t.id === 'default' && (
                             <span className="text-muted-foreground/40"> (auto)</span>
@@ -442,16 +450,6 @@ export function SettingsModal({
                 </div>
                 <p className="text-[10px] text-muted-foreground/40 mt-2">
                   Applies to both Claude and shell terminals
-                </p>
-              </div>
-
-              {/* Version */}
-              <div>
-                <label className="block text-[12px] font-medium text-muted-foreground/70 mb-1.5">
-                  Version
-                </label>
-                <p className="text-[13px] text-muted-foreground/50 font-mono">
-                  {appVersion || '...'}
                 </p>
               </div>
             </div>
