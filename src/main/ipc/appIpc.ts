@@ -1,9 +1,9 @@
 import { ipcMain, dialog, app, shell, BrowserWindow, Notification } from 'electron';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import * as fs from 'fs';
-import * as os from 'os';
-import * as path from 'path';
+import { existsSync, readFileSync } from 'fs';
+import { homedir } from 'os';
+import { join, resolve } from 'path';
 
 const execFileAsync = promisify(execFile);
 
@@ -65,8 +65,8 @@ export function registerAppIpc(): void {
 
   ipcMain.handle('app:detectGit', async (_event, folderPath: string) => {
     try {
-      const gitDir = path.join(folderPath, '.git');
-      if (!fs.existsSync(gitDir)) {
+      const gitDir = join(folderPath, '.git');
+      if (!existsSync(gitDir)) {
         return { success: true, data: { remote: null, branch: null } };
       }
 
@@ -122,9 +122,9 @@ export function registerAppIpc(): void {
       try {
         // Check project-level settings first (higher precedence)
         if (projectPath) {
-          const repoSettings = path.join(projectPath, '.claude', 'settings.json');
-          if (fs.existsSync(repoSettings)) {
-            const parsed = JSON.parse(fs.readFileSync(repoSettings, 'utf-8'));
+          const repoSettings = join(projectPath, '.claude', 'settings.json');
+          if (existsSync(repoSettings)) {
+            const parsed = JSON.parse(readFileSync(repoSettings, 'utf-8'));
             if (parsed?.attribution?.commit !== undefined) {
               return { success: true, data: parsed.attribution.commit };
             }
@@ -132,13 +132,9 @@ export function registerAppIpc(): void {
         }
 
         // Fall back to global settings
-        const globalSettings = path.join(
-          process.env.HOME || os.homedir(),
-          '.claude',
-          'settings.json',
-        );
-        if (fs.existsSync(globalSettings)) {
-          const parsed = JSON.parse(fs.readFileSync(globalSettings, 'utf-8'));
+        const globalSettings = join(process.env.HOME || homedir(), '.claude', 'settings.json');
+        if (existsSync(globalSettings)) {
+          const parsed = JSON.parse(readFileSync(globalSettings, 'utf-8'));
           if (parsed?.attribution?.commit !== undefined) {
             return { success: true, data: parsed.attribution.commit };
           }
@@ -174,8 +170,8 @@ export function registerAppIpc(): void {
     'app:openInEditor',
     async (_event, args: { cwd: string; filePath: string; line?: number; col?: number }) => {
       try {
-        const resolved = path.resolve(args.cwd, args.filePath);
-        if (!fs.existsSync(resolved)) {
+        const resolved = resolve(args.cwd, args.filePath);
+        if (!existsSync(resolved)) {
           return { success: false, error: `File not found: ${resolved}` };
         }
 
