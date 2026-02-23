@@ -107,6 +107,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Settings
   setDesktopNotification: (opts: { enabled: boolean }) =>
     ipcRenderer.send('app:setDesktopNotification', opts),
+  setCommitAttribution: (value: string | undefined) =>
+    ipcRenderer.send('app:setCommitAttribution', value),
+  getClaudeAttribution: (projectPath?: string) =>
+    ipcRenderer.invoke('app:getClaudeAttribution', projectPath),
 
   // GitHub
   githubCheckAvailable: () => ipcRenderer.invoke('github:check-available'),

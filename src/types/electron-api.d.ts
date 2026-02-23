@@ -136,6 +136,8 @@ export interface ElectronAPI {
 
   // Settings
   setDesktopNotification: (opts: { enabled: boolean }) => void;
+  setCommitAttribution: (value: string | undefined) => void;
+  getClaudeAttribution: (projectPath?: string) => Promise<IpcResponse<string | null>>;
 
   // GitHub
   githubCheckAvailable: () => Promise<IpcResponse<boolean>>;

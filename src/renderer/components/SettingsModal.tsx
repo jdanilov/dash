@@ -11,6 +11,9 @@ import { NOTIFICATION_SOUNDS, SOUND_LABELS } from '../sounds';
 import type { NotificationSound } from '../sounds';
 import { TERMINAL_THEMES } from '../terminal/terminalThemes';
 
+const DASH_DEFAULT_ATTRIBUTION =
+  'Co-Authored-By: Claude <noreply@anthropic.com> via Dash <dash@syv.ai>';
+
 interface SettingsModalProps {
   theme: 'light' | 'dark';
   onThemeChange: (theme: 'light' | 'dark') => void;
@@ -26,6 +29,9 @@ interface SettingsModalProps {
   onShellDrawerPositionChange: (value: 'left' | 'main' | 'right') => void;
   terminalTheme: string;
   onTerminalThemeChange: (id: string) => void;
+  commitAttribution: string | undefined;
+  onCommitAttributionChange: (value: string | undefined) => void;
+  activeProjectPath?: string;
   keybindings: KeyBindingMap;
   onKeybindingsChange: (bindings: KeyBindingMap) => void;
   onClose: () => void;
@@ -122,24 +128,35 @@ export function SettingsModal({
   onShellDrawerPositionChange,
   terminalTheme,
   onTerminalThemeChange,
+  commitAttribution,
+  onCommitAttributionChange,
+  activeProjectPath,
   keybindings,
   onKeybindingsChange,
   onClose,
 }: SettingsModalProps) {
-  const [tab, setTab] = useState<'general' | 'appearance' | 'keybindings' | 'connections'>('general');
+  const [tab, setTab] = useState<'general' | 'appearance' | 'keybindings' | 'connections'>(
+    'general',
+  );
   const [claudeInfo, setClaudeInfo] = useState<{
     installed: boolean;
     version: string | null;
     path: string | null;
   } | null>(null);
   const [appVersion, setAppVersion] = useState('');
+  const [claudeDefaultAttribution, setClaudeDefaultAttribution] = useState<string | null>(null);
 
   useEffect(() => {
     window.electronAPI.detectClaude().then((resp) => {
       if (resp.success) setClaudeInfo(resp.data ?? null);
     });
     window.electronAPI.getAppVersion().then((v) => setAppVersion(v));
-  }, []);
+    window.electronAPI.getClaudeAttribution(activeProjectPath).then((resp) => {
+      if (resp.success && resp.data != null) {
+        setClaudeDefaultAttribution(resp.data);
+      }
+    });
+  }, [activeProjectPath]);
 
   function handleBindingChange(id: string, updated: KeyBinding) {
     onKeybindingsChange({ ...keybindings, [id]: updated });
@@ -328,11 +345,11 @@ export function SettingsModal({
                 </button>
                 {shellDrawerEnabled && (
                   <div className="grid grid-cols-3 gap-2 mt-3">
-                    {([
+                    {[
                       { value: 'left' as const, label: 'Left Sidebar' },
                       { value: 'main' as const, label: 'Main Pane' },
                       { value: 'right' as const, label: 'Right Sidebar' },
-                    ]).map(({ value, label }) => (
+                    ].map(({ value, label }) => (
                       <button
                         key={value}
                         onClick={() => onShellDrawerPositionChange(value)}
@@ -352,14 +369,72 @@ export function SettingsModal({
                 </p>
               </div>
 
+              {/* Commit Attribution */}
+              <div>
+                <label className="block text-[12px] font-medium text-foreground mb-3">
+                  Commit Attribution
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(
+                    [
+                      { value: 'default' as const, label: 'Default' },
+                      { value: 'custom' as const, label: 'Custom' },
+                    ] as const
+                  ).map(({ value, label }) => {
+                    const isActive =
+                      value === 'default'
+                        ? commitAttribution === undefined
+                        : commitAttribution !== undefined;
+                    return (
+                      <button
+                        key={value}
+                        onClick={() => {
+                          if (value === 'default') {
+                            onCommitAttributionChange(undefined);
+                          } else {
+                            onCommitAttributionChange(
+                              commitAttribution ?? DASH_DEFAULT_ATTRIBUTION,
+                            );
+                          }
+                        }}
+                        className={`px-3 py-2.5 rounded-lg text-[12px] border transition-all duration-150 ${
+                          isActive
+                            ? 'border-primary/40 bg-primary/8 text-foreground ring-1 ring-primary/20 font-medium'
+                            : 'border-border/60 text-foreground/60 hover:bg-accent/40 hover:text-foreground'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <textarea
+                  value={
+                    commitAttribution === undefined
+                      ? (claudeDefaultAttribution ?? DASH_DEFAULT_ATTRIBUTION)
+                      : commitAttribution
+                  }
+                  onChange={(e) => onCommitAttributionChange(e.target.value)}
+                  readOnly={commitAttribution === undefined}
+                  rows={3}
+                  className={`mt-3 w-full px-3 py-2.5 rounded-lg text-[12px] font-mono border bg-transparent resize-none ${
+                    commitAttribution === undefined
+                      ? 'border-border/40 text-foreground/40 cursor-default'
+                      : 'border-border/60 text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/40'
+                  }`}
+                />
+                <p className="text-[10px] text-foreground/80 mt-2">
+                  Controls attribution appended to git commits by Claude. Default respects repo and
+                  global Claude settings. Clear the field to disable attribution.
+                </p>
+              </div>
+
               {/* Version */}
               <div>
                 <label className="block text-[12px] font-medium text-foreground mb-1.5">
                   Version
                 </label>
-                <p className="text-[13px] text-foreground/80 font-mono">
-                  {appVersion || '...'}
-                </p>
+                <p className="text-[13px] text-foreground/80 font-mono">{appVersion || '...'}</p>
               </div>
             </div>
           )}
@@ -405,9 +480,12 @@ export function SettingsModal({
                 <div className="grid grid-cols-3 gap-2">
                   {TERMINAL_THEMES.map((t) => {
                     const isActive = terminalTheme === t.id;
-                    const bg = t.id === 'default'
-                      ? (theme === 'dark' ? '#1f1f1f' : '#fafafa')
-                      : (t.theme.background || '#000');
+                    const bg =
+                      t.id === 'default'
+                        ? theme === 'dark'
+                          ? '#1f1f1f'
+                          : '#fafafa'
+                        : t.theme.background || '#000';
                     const colors = [
                       t.theme.red || '#f00',
                       t.theme.green || '#0f0',

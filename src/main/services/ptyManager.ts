@@ -18,6 +18,14 @@ interface PtyRecord {
 
 const ptys = new Map<string, PtyRecord>();
 
+// Commit attribution setting: undefined = "default" (don't write key),
+// '' = "none" (suppress attribution), any other string = custom text.
+let commitAttributionSetting: string | undefined = undefined;
+
+export function setCommitAttribution(value: string | undefined): void {
+  commitAttributionSetting = value;
+}
+
 export function setDesktopNotification(opts: { enabled: boolean }): void {
   hookServer.setDesktopNotification(opts);
 }
@@ -167,7 +175,7 @@ function writeHookSettings(cwd: string, ptyId: string): void {
       }
     }
 
-    const merged = {
+    const merged: Record<string, unknown> = {
       ...existing,
       hooks: {
         ...(existing.hooks && typeof existing.hooks === 'object'
@@ -176,6 +184,14 @@ function writeHookSettings(cwd: string, ptyId: string): void {
         ...hookSettings,
       },
     };
+
+    // Commit attribution: only write the key when user has explicitly configured it.
+    // When undefined ("default"), remove the key so repo/global settings take effect.
+    if (commitAttributionSetting !== undefined) {
+      merged.attribution = { commit: commitAttributionSetting };
+    } else {
+      delete merged.attribution;
+    }
 
     fs.writeFileSync(settingsPath, JSON.stringify(merged, null, 2) + '\n');
     console.error(`[writeHookSettings] Wrote ${settingsPath}`);

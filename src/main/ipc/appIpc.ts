@@ -2,6 +2,7 @@ import { ipcMain, dialog, app, shell, BrowserWindow, Notification } from 'electr
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 
 const execFileAsync = promisify(execFile);
@@ -112,6 +113,48 @@ export function registerAppIpc(): void {
         // Ignore — user may have denied permission
       }
     }
+  });
+
+  // Read effective commit attribution from Claude Code settings hierarchy
+  ipcMain.handle(
+    'app:getClaudeAttribution',
+    (_event, projectPath?: string): { success: boolean; data: string | null } => {
+      try {
+        // Check project-level settings first (higher precedence)
+        if (projectPath) {
+          const repoSettings = path.join(projectPath, '.claude', 'settings.json');
+          if (fs.existsSync(repoSettings)) {
+            const parsed = JSON.parse(fs.readFileSync(repoSettings, 'utf-8'));
+            if (parsed?.attribution?.commit !== undefined) {
+              return { success: true, data: parsed.attribution.commit };
+            }
+          }
+        }
+
+        // Fall back to global settings
+        const globalSettings = path.join(
+          process.env.HOME || os.homedir(),
+          '.claude',
+          'settings.json',
+        );
+        if (fs.existsSync(globalSettings)) {
+          const parsed = JSON.parse(fs.readFileSync(globalSettings, 'utf-8'));
+          if (parsed?.attribution?.commit !== undefined) {
+            return { success: true, data: parsed.attribution.commit };
+          }
+        }
+
+        // No custom attribution configured — Claude uses its built-in default
+        return { success: true, data: null };
+      } catch {
+        return { success: true, data: null };
+      }
+    },
+  );
+
+  ipcMain.on('app:setCommitAttribution', async (_event, value: string | undefined) => {
+    const { setCommitAttribution } = await import('../services/ptyManager');
+    setCommitAttribution(value);
   });
 
   ipcMain.handle('app:detectClaude', async () => {

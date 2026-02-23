@@ -71,12 +71,21 @@ export function App() {
   const [terminalTheme, setTerminalTheme] = useState(() => {
     return localStorage.getItem('terminalTheme') || 'default';
   });
+  const [commitAttribution, setCommitAttribution] = useState<string | undefined>(() => {
+    const stored = localStorage.getItem('commitAttribution');
+    if (stored === null) return undefined; // "default" — key absent
+    return stored; // '' for "none", or custom text
+  });
   // Sync desktop notification settings to main process
   useEffect(() => {
     window.electronAPI.setDesktopNotification?.({
       enabled: desktopNotification,
     });
   }, [desktopNotification]);
+  // Sync commit attribution to main process
+  useEffect(() => {
+    window.electronAPI.setCommitAttribution?.(commitAttribution);
+  }, [commitAttribution]);
 
   // Activity state — keys are PTY IDs that have active sessions
   const [taskActivity, setTaskActivity] = useState<Record<string, 'busy' | 'idle'>>({});
@@ -649,13 +658,11 @@ export function App() {
       // (branch linking happens in the worktree service before push)
       if (linkedIssues && linkedIssues.length > 0) {
         for (const issue of linkedIssues) {
-          window.electronAPI.githubPostBranchComment(
-            targetProject.path,
-            issue.number,
-            branch,
-          ).catch(() => {
-            // Best effort
-          });
+          window.electronAPI
+            .githubPostBranchComment(targetProject.path, issue.number, branch)
+            .catch(() => {
+              // Best effort
+            });
         }
       }
     }
@@ -882,7 +889,10 @@ export function App() {
         </Panel>
         <PanelResizeHandle disabled={sidebarCollapsed} className="w-[1px] bg-border/40" />
 
-        <Panel className={sidebarAnimating || changesAnimating ? 'panel-transition' : ''} minSize={35}>
+        <Panel
+          className={sidebarAnimating || changesAnimating ? 'panel-transition' : ''}
+          minSize={35}
+        >
           <ShellDrawerWrapper
             enabled={shellDrawerEnabled && shellDrawerPosition === 'main'}
             taskId={activeTask?.id ?? null}
@@ -938,7 +948,9 @@ export function App() {
               }}
             >
               <ShellDrawerWrapper
-                enabled={shellDrawerEnabled && shellDrawerPosition === 'right' && !changesPanelCollapsed}
+                enabled={
+                  shellDrawerEnabled && shellDrawerPosition === 'right' && !changesPanelCollapsed
+                }
                 taskId={activeTask?.id ?? null}
                 cwd={activeTask?.path ?? null}
                 collapsed={shellDrawerCollapsed}
@@ -1041,6 +1053,16 @@ export function App() {
           onDesktopNotificationChange={(v) => {
             setDesktopNotification(v);
             localStorage.setItem('desktopNotification', String(v));
+          }}
+          activeProjectPath={activeProject?.path}
+          commitAttribution={commitAttribution}
+          onCommitAttributionChange={(v) => {
+            setCommitAttribution(v);
+            if (v === undefined) {
+              localStorage.removeItem('commitAttribution');
+            } else {
+              localStorage.setItem('commitAttribution', v);
+            }
           }}
           keybindings={keybindings}
           onKeybindingsChange={(b) => {
