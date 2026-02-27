@@ -129,5 +129,37 @@ export function runMigrations(): void {
     console.error('[migrate] Failed to migrate auto_approve to permission_mode:', err);
   }
 
+  // MCP Library tables
+  rawDb.exec(`
+    CREATE TABLE IF NOT EXISTS library_mcps (
+      id TEXT PRIMARY KEY,
+      source_file_path TEXT NOT NULL,
+      name TEXT NOT NULL,
+      config TEXT NOT NULL,
+      enabled_by_default INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  rawDb.exec(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_library_mcps_source_name ON library_mcps(source_file_path, name);`,
+  );
+
+  rawDb.exec(`
+    CREATE TABLE IF NOT EXISTS task_mcps (
+      id TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      mcp_id TEXT NOT NULL REFERENCES library_mcps(id) ON DELETE CASCADE,
+      enabled INTEGER NOT NULL,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  rawDb.exec(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_task_mcps_task_mcp ON task_mcps(task_id, mcp_id);`,
+  );
+  rawDb.exec(`CREATE INDEX IF NOT EXISTS idx_task_mcps_task_id ON task_mcps(task_id);`);
+
   rawDb.pragma('foreign_keys = ON');
 }

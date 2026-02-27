@@ -2,13 +2,23 @@ import { eq, desc, and } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { initDb, getDb } from '../db/client';
 import { runMigrations } from '../db/migrate';
-import { projects, tasks, conversations, libraryCommands, taskCommands } from '../db/schema';
+import {
+  projects,
+  tasks,
+  conversations,
+  libraryCommands,
+  taskCommands,
+  libraryMcps,
+  taskMcps,
+} from '../db/schema';
 import type {
   Project,
   Task,
   Conversation,
   LibraryCommand,
   TaskCommand,
+  LibraryMcp,
+  TaskMcp,
   PermissionMode,
 } from '@shared/types';
 
@@ -352,6 +362,173 @@ export class DatabaseService {
       id: row.id,
       taskId: row.taskId,
       commandId: row.commandId,
+      enabled: row.enabled,
+      updatedAt: row.updatedAt ?? '',
+    };
+  }
+
+  // ── Library MCPs ────────────────────────────────────────
+
+  static getAllLibraryMcps(): LibraryMcp[] {
+    const db = getDb();
+    const rows = db.select().from(libraryMcps).all();
+    return rows.map(this.mapLibraryMcp);
+  }
+
+  static getLibraryMcp(id: string): LibraryMcp | null {
+    const db = getDb();
+    const rows = db.select().from(libraryMcps).where(eq(libraryMcps.id, id)).all();
+    return rows.length > 0 ? this.mapLibraryMcp(rows[0]) : null;
+  }
+
+  static getLibraryMcpsBySource(sourceFilePath: string): LibraryMcp[] {
+    const db = getDb();
+    const rows = db
+      .select()
+      .from(libraryMcps)
+      .where(eq(libraryMcps.sourceFilePath, sourceFilePath))
+      .all();
+    return rows.map(this.mapLibraryMcp);
+  }
+
+  static getLibraryMcpBySourceAndName(sourceFilePath: string, name: string): LibraryMcp | null {
+    const db = getDb();
+    const rows = db
+      .select()
+      .from(libraryMcps)
+      .where(and(eq(libraryMcps.sourceFilePath, sourceFilePath), eq(libraryMcps.name, name)))
+      .all();
+    return rows.length > 0 ? this.mapLibraryMcp(rows[0]) : null;
+  }
+
+  static createLibraryMcp(data: Omit<LibraryMcp, 'id' | 'createdAt' | 'updatedAt'>): LibraryMcp {
+    const db = getDb();
+    const id = randomUUID();
+    const now = new Date().toISOString();
+
+    db.insert(libraryMcps)
+      .values({
+        id,
+        sourceFilePath: data.sourceFilePath,
+        name: data.name,
+        config: data.config,
+        enabledByDefault: data.enabledByDefault ?? true,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .run();
+
+    const rows = db.select().from(libraryMcps).where(eq(libraryMcps.id, id)).all();
+    return this.mapLibraryMcp(rows[0]);
+  }
+
+  static upsertLibraryMcp(data: Omit<LibraryMcp, 'id' | 'createdAt' | 'updatedAt'>): LibraryMcp {
+    const db = getDb();
+    const id = randomUUID();
+    const now = new Date().toISOString();
+
+    db.insert(libraryMcps)
+      .values({
+        id,
+        sourceFilePath: data.sourceFilePath,
+        name: data.name,
+        config: data.config,
+        enabledByDefault: data.enabledByDefault ?? true,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [libraryMcps.sourceFilePath, libraryMcps.name],
+        set: {
+          config: data.config,
+          enabledByDefault: data.enabledByDefault ?? true,
+          updatedAt: now,
+        },
+      })
+      .run();
+
+    // Fetch the row (either newly created or updated)
+    const rows = db
+      .select()
+      .from(libraryMcps)
+      .where(
+        and(eq(libraryMcps.sourceFilePath, data.sourceFilePath), eq(libraryMcps.name, data.name)),
+      )
+      .all();
+    return this.mapLibraryMcp(rows[0]);
+  }
+
+  static updateLibraryMcp(
+    id: string,
+    data: Partial<Pick<LibraryMcp, 'name' | 'config' | 'enabledByDefault'>>,
+  ): void {
+    const db = getDb();
+    const now = new Date().toISOString();
+
+    db.update(libraryMcps)
+      .set({
+        ...data,
+        updatedAt: now,
+      })
+      .where(eq(libraryMcps.id, id))
+      .run();
+  }
+
+  static deleteLibraryMcp(id: string): void {
+    const db = getDb();
+    db.delete(libraryMcps).where(eq(libraryMcps.id, id)).run();
+  }
+
+  static deleteLibraryMcpsBySource(sourceFilePath: string): void {
+    const db = getDb();
+    db.delete(libraryMcps).where(eq(libraryMcps.sourceFilePath, sourceFilePath)).run();
+  }
+
+  // ── Task MCPs ───────────────────────────────────────────
+
+  static getTaskMcps(taskId: string): TaskMcp[] {
+    const db = getDb();
+    const rows = db.select().from(taskMcps).where(eq(taskMcps.taskId, taskId)).all();
+    return rows.map(this.mapTaskMcp);
+  }
+
+  static setTaskMcpEnabled(taskId: string, mcpId: string, enabled: boolean): void {
+    const db = getDb();
+    const now = new Date().toISOString();
+    const id = randomUUID();
+
+    db.insert(taskMcps)
+      .values({
+        id,
+        taskId,
+        mcpId,
+        enabled,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [taskMcps.taskId, taskMcps.mcpId],
+        set: { enabled, updatedAt: now },
+      })
+      .run();
+  }
+
+  private static mapLibraryMcp(row: typeof libraryMcps.$inferSelect): LibraryMcp {
+    return {
+      id: row.id,
+      sourceFilePath: row.sourceFilePath,
+      name: row.name,
+      config: row.config,
+      enabledByDefault: row.enabledByDefault ?? true,
+      createdAt: row.createdAt ?? '',
+      updatedAt: row.updatedAt ?? '',
+    };
+  }
+
+  private static mapTaskMcp(row: typeof taskMcps.$inferSelect): TaskMcp {
+    return {
+      id: row.id,
+      taskId: row.taskId,
+      mcpId: row.mcpId,
       enabled: row.enabled,
       updatedAt: row.updatedAt ?? '',
     };

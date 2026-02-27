@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
-import { Plus, Library } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Plus, Library, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { CommandItem } from './CommandItem';
-import type { LibraryCommand } from '@shared/types';
+import { McpItem } from './McpItem';
+import type { LibraryCommand, LibraryMcp } from '@shared/types';
 
 interface LibraryPanelProps {
   currentTaskId: string | null;
@@ -14,8 +15,11 @@ export function LibraryPanel({ currentTaskId, taskPath }: LibraryPanelProps) {
   const [taskCommands, setTaskCommands] = useState<
     Array<{ command: LibraryCommand; enabled: boolean }>
   >([]);
+  // Store MCPs with their enabled state
+  const [taskMcps, setTaskMcps] = useState<Array<{ mcp: LibraryMcp; enabled: boolean }>>([]);
   const [needsRestart, setNeedsRestart] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showAddMenu, setShowAddMenu] = useState(false);
 
   /**
    * Load commands for the current task with enabled state.
@@ -23,7 +27,7 @@ export function LibraryPanel({ currentTaskId, taskPath }: LibraryPanelProps) {
    * - If task has an override, use that
    * - Otherwise, fall back to command's enabledByDefault
    */
-  const loadTaskCommands = async () => {
+  const loadTaskCommands = useCallback(async () => {
     if (!currentTaskId) {
       setTaskCommands([]);
       return;
@@ -33,13 +37,29 @@ export function LibraryPanel({ currentTaskId, taskPath }: LibraryPanelProps) {
     if (result.success && result.data) {
       setTaskCommands(result.data);
     }
-  };
+  }, [currentTaskId]);
+
+  /**
+   * Load MCPs for the current task with enabled state.
+   */
+  const loadTaskMcps = useCallback(async () => {
+    if (!currentTaskId) {
+      setTaskMcps([]);
+      return;
+    }
+
+    const result = await window.electronAPI.mcpLibrary.getTaskMcps(currentTaskId);
+    if (result.success && result.data) {
+      setTaskMcps(result.data);
+    }
+  }, [currentTaskId]);
 
   // Initial load and reload when task changes
   useEffect(() => {
     loadTaskCommands();
+    loadTaskMcps();
     setNeedsRestart(false);
-  }, [currentTaskId]);
+  }, [loadTaskCommands, loadTaskMcps]);
 
   // Listen for command changes
   useEffect(() => {
@@ -66,7 +86,31 @@ export function LibraryPanel({ currentTaskId, taskPath }: LibraryPanelProps) {
       unsubFileChanged();
       unsubRemoved();
     };
-  }, [currentTaskId, taskCommands]);
+  }, [currentTaskId, taskCommands, loadTaskCommands]);
+
+  // Listen for MCP changes
+  useEffect(() => {
+    const unsubMcpToggled = window.electronAPI.onMcpToggled((data) => {
+      if (data.taskId === currentTaskId) {
+        setNeedsRestart(true);
+      }
+    });
+
+    const unsubSourceChanged = window.electronAPI.onMcpSourceChanged(() => {
+      loadTaskMcps();
+      setNeedsRestart(true);
+    });
+
+    const unsubSourceRemoved = window.electronAPI.onMcpSourceRemoved(() => {
+      loadTaskMcps();
+    });
+
+    return () => {
+      unsubMcpToggled();
+      unsubSourceChanged();
+      unsubSourceRemoved();
+    };
+  }, [currentTaskId, loadTaskMcps]);
 
   const handleAddCommands = async () => {
     setLoading(true);
@@ -108,6 +152,102 @@ export function LibraryPanel({ currentTaskId, taskPath }: LibraryPanelProps) {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAddMcp = async () => {
+    setLoading(true);
+    setShowAddMenu(false);
+    try {
+      const result = await window.electronAPI.mcpLibrary.addSource();
+      if (result.success && result.data) {
+        const { added, updated, errors } = result.data;
+
+        if (errors.length > 0) {
+          console.error('Failed to add some MCPs:', errors);
+          errors.forEach((err) => {
+            toast.error(`Failed to add MCP: ${err.name}`, {
+              description: err.error,
+            });
+          });
+        }
+
+        if (added.length > 0 || updated.length > 0) {
+          await loadTaskMcps();
+          setNeedsRestart(true);
+
+          const parts: string[] = [];
+          if (added.length > 0) parts.push(`${added.length} added`);
+          if (updated.length > 0) parts.push(`${updated.length} updated`);
+          toast.success(`MCPs ${parts.join(', ')}`);
+        } else if (errors.length === 0) {
+          toast.info('No MCP file was selected');
+        }
+      } else {
+        toast.error('Failed to add MCPs', {
+          description: result.error,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to add MCPs:', error);
+      toast.error('Failed to add MCPs', {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggleMcp = async (mcpId: string, enabled: boolean) => {
+    if (!currentTaskId) return;
+
+    try {
+      const result = await window.electronAPI.mcpLibrary.toggleMcp({
+        taskId: currentTaskId,
+        mcpId,
+        enabled,
+      });
+
+      if (result.success) {
+        setTaskMcps((prev) => prev.map((tm) => (tm.mcp.id === mcpId ? { ...tm, enabled } : tm)));
+        setNeedsRestart(true);
+      }
+    } catch (error) {
+      console.error('Failed to toggle MCP:', error);
+    }
+  };
+
+  const handleToggleMcpDefault = async (mcpId: string, enabledByDefault: boolean) => {
+    try {
+      const result = await window.electronAPI.mcpLibrary.updateDefault({
+        mcpId,
+        enabledByDefault,
+      });
+
+      if (result.success) {
+        await loadTaskMcps();
+      }
+    } catch (error) {
+      console.error('Failed to update MCP default:', error);
+    }
+  };
+
+  const handleDeleteMcp = async (mcpId: string) => {
+    try {
+      const result = await window.electronAPI.mcpLibrary.deleteMcp(mcpId);
+      if (result.success) {
+        await loadTaskMcps();
+        toast.success('MCP removed');
+      } else {
+        toast.error('Failed to remove MCP', {
+          description: result.error,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to remove MCP:', error);
+      toast.error('Failed to remove MCP', {
+        description: error instanceof Error ? error.message : String(error),
+      });
     }
   };
 
@@ -194,16 +334,29 @@ export function LibraryPanel({ currentTaskId, taskPath }: LibraryPanelProps) {
     if (!currentTaskId || !taskPath) return;
 
     try {
-      // Prepare restart: re-inject commands into .claude/commands/
-      const result = await window.electronAPI.commandLibrary.prepareRestart({
+      // Prepare restart: re-inject commands and MCPs
+      const commandResult = await window.electronAPI.commandLibrary.prepareRestart({
         taskId: currentTaskId,
         cwd: taskPath,
       });
 
-      if (!result.success) {
-        console.error('Failed to prepare restart:', result.error);
+      if (!commandResult.success) {
+        console.error('Failed to prepare restart (commands):', commandResult.error);
         toast.error('Failed to update commands', {
-          description: result.error,
+          description: commandResult.error,
+        });
+        return;
+      }
+
+      const mcpResult = await window.electronAPI.mcpLibrary.prepareRestart({
+        taskId: currentTaskId,
+        cwd: taskPath,
+      });
+
+      if (!mcpResult.success) {
+        console.error('Failed to prepare restart (MCPs):', mcpResult.error);
+        toast.error('Failed to update MCPs', {
+          description: mcpResult.error,
         });
         return;
       }
@@ -215,7 +368,7 @@ export function LibraryPanel({ currentTaskId, taskPath }: LibraryPanelProps) {
       // Clear the restart flag
       setNeedsRestart(false);
 
-      toast.success('Session restarted with updated commands');
+      toast.success('Session restarted with updated resources');
     } catch (error) {
       console.error('Failed to restart session:', error);
       toast.error('Failed to restart session', {
@@ -257,20 +410,45 @@ export function LibraryPanel({ currentTaskId, taskPath }: LibraryPanelProps) {
           <span className="text-[11px] font-semibold uppercase text-foreground/80 tracking-[0.08em]">
             Library
           </span>
-          {taskCommands.length > 0 && (
+          {(taskCommands.length > 0 || taskMcps.length > 0) && (
             <span className="min-w-[18px] h-[16px] flex items-center justify-center rounded-full bg-primary/15 text-[10px] font-bold text-primary tabular-nums px-1">
-              {taskCommands.length}
+              {taskCommands.length + taskMcps.length}
             </span>
           )}
         </div>
-        <button
-          onClick={handleAddCommands}
-          disabled={loading}
-          className="p-[3px] rounded hover:bg-accent text-muted-foreground/40 hover:text-foreground transition-colors disabled:opacity-50"
-          title="Add commands"
-        >
-          <Plus size={11} strokeWidth={2} />
-        </button>
+        <div className="relative">
+          <button
+            onClick={() => setShowAddMenu(!showAddMenu)}
+            disabled={loading}
+            className="p-[3px] rounded hover:bg-accent text-muted-foreground/40 hover:text-foreground transition-colors disabled:opacity-50 flex items-center gap-0.5"
+            title="Add resources"
+          >
+            <Plus size={11} strokeWidth={2} />
+            <ChevronDown size={9} strokeWidth={2} />
+          </button>
+          {showAddMenu && (
+            <div
+              className="absolute right-0 top-full mt-1 z-50 min-w-[140px] rounded-md border border-border bg-surface-1 shadow-lg py-1"
+              onMouseLeave={() => setShowAddMenu(false)}
+            >
+              <button
+                onClick={() => {
+                  setShowAddMenu(false);
+                  handleAddCommands();
+                }}
+                className="w-full px-3 py-1.5 text-left text-xs text-foreground hover:bg-accent/50 transition-colors"
+              >
+                Add Command/Skill
+              </button>
+              <button
+                onClick={handleAddMcp}
+                className="w-full px-3 py-1.5 text-left text-xs text-foreground hover:bg-accent/50 transition-colors"
+              >
+                Add MCP (.mcp.json)
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Restart alert */}
@@ -288,9 +466,9 @@ export function LibraryPanel({ currentTaskId, taskPath }: LibraryPanelProps) {
         </div>
       )}
 
-      {/* Commands list */}
+      {/* Resources list */}
       <div className="flex-1 overflow-y-auto">
-        {taskCommands.length === 0 ? (
+        {taskCommands.length === 0 && taskMcps.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-2">
             <div className="w-8 h-8 rounded-xl bg-accent/40 flex items-center justify-center">
               <Library size={14} className="text-foreground/50" strokeWidth={1.5} />
@@ -299,6 +477,7 @@ export function LibraryPanel({ currentTaskId, taskPath }: LibraryPanelProps) {
           </div>
         ) : (
           <div className="px-2 pt-1">
+            {/* Commands & Skills */}
             {taskCommands.map((tc) => (
               <CommandItem
                 key={tc.command.id}
@@ -311,6 +490,18 @@ export function LibraryPanel({ currentTaskId, taskPath }: LibraryPanelProps) {
                 onInvoke={
                   tc.command.type === 'command' ? () => handleInvokeCommand(tc.command) : undefined
                 }
+              />
+            ))}
+
+            {/* MCPs */}
+            {taskMcps.map((tm) => (
+              <McpItem
+                key={tm.mcp.id}
+                mcp={tm.mcp}
+                enabled={tm.enabled}
+                onToggle={(enabled) => handleToggleMcp(tm.mcp.id, enabled)}
+                onToggleDefault={(enabled) => handleToggleMcpDefault(tm.mcp.id, enabled)}
+                onDelete={() => handleDeleteMcp(tm.mcp.id)}
               />
             ))}
           </div>

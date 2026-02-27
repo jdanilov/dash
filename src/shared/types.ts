@@ -235,3 +235,33 @@ export interface TaskCommand {
 export interface TaskCommandWithDetails extends TaskCommand {
   command: LibraryCommand;
 }
+
+// ── MCP Library Types ────────────────────────────────────
+
+export interface LibraryMcp {
+  id: string;
+  sourceFilePath: string;
+  name: string;
+  config: string; // JSON: { command, args, env? }
+  enabledByDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TaskMcp {
+  id: string;
+  taskId: string;
+  mcpId: string;
+  enabled: boolean;
+  updatedAt: string;
+}
+
+export interface TaskMcpWithDetails extends TaskMcp {
+  mcp: LibraryMcp;
+}
+
+export interface McpConfig {
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+}

@@ -100,3 +100,38 @@ export const taskCommands = sqliteTable(
     taskIdIdx: index('idx_task_commands_task_id').on(table.taskId),
   }),
 );
+
+export const libraryMcps = sqliteTable(
+  'library_mcps',
+  {
+    id: text('id').primaryKey(),
+    sourceFilePath: text('source_file_path').notNull(),
+    name: text('name').notNull(),
+    config: text('config').notNull(), // JSON: { command, args, env? }
+    enabledByDefault: integer('enabled_by_default', { mode: 'boolean' }).default(true),
+    createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    sourceNameIdx: uniqueIndex('idx_library_mcps_source_name').on(table.sourceFilePath, table.name),
+  }),
+);
+
+export const taskMcps = sqliteTable(
+  'task_mcps',
+  {
+    id: text('id').primaryKey(),
+    taskId: text('task_id')
+      .notNull()
+      .references(() => tasks.id, { onDelete: 'cascade' }),
+    mcpId: text('mcp_id')
+      .notNull()
+      .references(() => libraryMcps.id, { onDelete: 'cascade' }),
+    enabled: integer('enabled', { mode: 'boolean' }).notNull(),
+    updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    taskMcpIdx: uniqueIndex('idx_task_mcps_task_mcp').on(table.taskId, table.mcpId),
+    taskIdIdx: index('idx_task_mcps_task_id').on(table.taskId),
+  }),
+);

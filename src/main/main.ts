@@ -106,6 +106,10 @@ app.whenReady().then(async () => {
   const { commandLibraryService } = await import('./services/CommandLibraryService');
   commandLibraryService.initialize(mainWindow.webContents);
 
+  // Initialize MCP library service
+  const { mcpLibraryService } = await import('./services/McpLibraryService');
+  mcpLibraryService.initialize(mainWindow.webContents);
+
   // Cleanup orphaned reserve worktrees (background, non-blocking)
   setTimeout(async () => {
     try {
@@ -209,6 +213,14 @@ app.on('before-quit', async () => {
   try {
     const { commandLibraryService } = await import('./services/CommandLibraryService');
     commandLibraryService.cleanup();
+  } catch {
+    // Best effort
+  }
+
+  // Cleanup MCP library watchers
+  try {
+    const { mcpLibraryService } = await import('./services/McpLibraryService');
+    mcpLibraryService.cleanup();
   } catch {
     // Best effort
   }
