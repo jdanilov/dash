@@ -13,6 +13,7 @@ import type {
   CommitDetail,
   RemoteControlState,
   LibraryCommand,
+  PermissionMode,
 } from '../shared/types';
 
 export interface ElectronAPI {
@@ -86,7 +87,7 @@ export interface ElectronAPI {
     cwd: string;
     cols: number;
     rows: number;
-    autoApprove?: boolean;
+    permissionMode?: PermissionMode;
     resume?: boolean;
     isDark?: boolean;
     taskId?: string;

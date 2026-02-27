@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { ArrowDown } from 'lucide-react';
 import { sessionRegistry } from '../terminal/SessionRegistry';
+import type { PermissionMode } from '../../shared/types';
 
 const OVERLAY_MIN_MS = 2000;
 const OVERLAY_FADE_MS = 300;
@@ -8,10 +9,10 @@ const OVERLAY_FADE_MS = 300;
 interface TerminalPaneProps {
   id: string;
   cwd: string;
-  autoApprove?: boolean;
+  permissionMode?: PermissionMode;
 }
 
-export function TerminalPane({ id, cwd, autoApprove }: TerminalPaneProps) {
+export function TerminalPane({ id, cwd, permissionMode }: TerminalPaneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [showOverlay, setShowOverlay] = useState(false);
@@ -33,7 +34,7 @@ export function TerminalPane({ id, cwd, autoApprove }: TerminalPaneProps) {
 
     // Get or create session first so we can register callbacks
     // before the async attach() work detects a restart
-    const session = sessionRegistry.getOrCreate({ id, cwd, autoApprove });
+    const session = sessionRegistry.getOrCreate({ id, cwd, permissionMode });
 
     session.onRestarting(() => {
       overlayStartRef.current = Date.now();
@@ -55,7 +56,7 @@ export function TerminalPane({ id, cwd, autoApprove }: TerminalPaneProps) {
     return () => {
       sessionRegistry.detach(id);
     };
-  }, [id, cwd, autoApprove, hideOverlay]);
+  }, [id, cwd, permissionMode, hideOverlay]);
 
   return (
     <div

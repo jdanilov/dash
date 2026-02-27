@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X, GitBranch, Zap, ChevronDown, Loader2, AlertCircle, Search, Github, Check } from 'lucide-react';
-import type { BranchInfo, GithubIssue } from '../../shared/types';
+import type { BranchInfo, GithubIssue, PermissionMode } from '../../shared/types';
 
 interface TaskModalProps {
   projectPath: string;
@@ -8,7 +8,7 @@ interface TaskModalProps {
   onCreate: (
     name: string,
     useWorktree: boolean,
-    autoApprove: boolean,
+    permissionMode: PermissionMode,
     baseRef?: string,
     linkedIssues?: GithubIssue[],
   ) => void;
@@ -17,7 +17,13 @@ interface TaskModalProps {
 export function TaskModal({ projectPath, onClose, onCreate }: TaskModalProps) {
   const [name, setName] = useState('');
   const [useWorktree, setUseWorktree] = useState(true);
-  const [autoApprove, setAutoApprove] = useState(() => localStorage.getItem('yoloMode') === 'true');
+  const [permissionMode, setPermissionMode] = useState<PermissionMode>(() => {
+    const saved = localStorage.getItem('permissionMode');
+    if (saved === 'paranoid' || saved === 'safe' || saved === 'yolo') {
+      return saved;
+    }
+    return 'paranoid';
+  });
 
   // Branch selector state
   const [branches, setBranches] = useState<BranchInfo[]>([]);
@@ -152,7 +158,7 @@ export function TaskModal({ projectPath, onClose, onCreate }: TaskModalProps) {
       onCreate(
         name.trim(),
         useWorktree,
-        autoApprove,
+        permissionMode,
         baseRef,
         selectedIssues.length > 0 ? selectedIssues : undefined,
       );
@@ -468,28 +474,32 @@ export function TaskModal({ projectPath, onClose, onCreate }: TaskModalProps) {
             </div>
           )}
 
-          {/* Yolo mode toggle */}
+          {/* Permission mode selector */}
           <div className="mb-6">
-            <label className="flex items-center gap-3 cursor-pointer group">
-              <div className="relative">
-                <input
-                  type="checkbox"
-                  checked={autoApprove}
-                  onChange={(e) => {
-                    setAutoApprove(e.target.checked);
-                    localStorage.setItem('yoloMode', String(e.target.checked));
-                  }}
-                  className="sr-only peer"
-                />
-                <div className="w-8 h-[18px] rounded-full bg-accent peer-checked:bg-primary/80 transition-colors duration-200" />
-                <div className="absolute top-[3px] left-[3px] w-3 h-3 rounded-full bg-muted-foreground/40 peer-checked:bg-primary-foreground peer-checked:translate-x-[14px] transition-all duration-200" />
-              </div>
-              <div className="flex items-center gap-2">
+            <label className="block mb-2">
+              <div className="flex items-center gap-2 mb-2">
                 <Zap size={13} className="text-muted-foreground/40" strokeWidth={1.8} />
-                <span className="text-[13px] text-foreground/80">Yolo mode</span>
-                <span className="text-[11px] text-muted-foreground/40">skip permissions</span>
+                <span className="text-[13px] font-medium text-foreground/80">Permission Mode</span>
               </div>
+              <select
+                value={permissionMode}
+                onChange={(e) => {
+                  const mode = e.target.value as PermissionMode;
+                  setPermissionMode(mode);
+                  localStorage.setItem('permissionMode', mode);
+                }}
+                className="w-full px-3 py-2 bg-surface-0 border border-border rounded-md text-[13px] text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+              >
+                <option value="paranoid">Paranoid - Approve everything</option>
+                <option value="safe">Safe Auto-Approve - Block only dangerous operations</option>
+                <option value="yolo">Yolo - Skip all permissions</option>
+              </select>
             </label>
+            <p className="text-[11px] text-muted-foreground/40 mt-1.5">
+              {permissionMode === 'paranoid' && 'Claude will request approval for all operations'}
+              {permissionMode === 'safe' && 'Auto-approve safe operations, block dangerous ones (git force, rm -rf, etc.)'}
+              {permissionMode === 'yolo' && 'Skip all permission prompts (dangerous)'}
+            </p>
           </div>
 
           {/* Actions */}
