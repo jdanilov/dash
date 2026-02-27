@@ -104,7 +104,7 @@ export function MainContent({
                       : taskActivity[task.id] === 'busy'
                         ? 'bg-amber-400 animate-pulse'
                         : taskActivity[task.id] === 'idle'
-                          ? 'bg-green-400'
+                          ? 'bg-emerald-400'
                           : 'bg-muted-foreground/30'
                   }`}
                 />
@@ -129,13 +129,23 @@ export function MainContent({
         </>
       ) : (
         <>
-          <div className="flex items-center gap-2">
-            <div className="w-[7px] h-[7px] rounded-full bg-[hsl(var(--git-added))] status-pulse" />
-            <span className="text-[13px] font-medium text-foreground">{activeTask.name}</span>
+          <div className="flex items-center gap-2 min-w-0 flex-shrink">
+            {taskActivity[activeTask.id] === 'waiting' ? (
+              <div className="w-[7px] h-[7px] rounded-full bg-orange-500 flex-shrink-0" />
+            ) : taskActivity[activeTask.id] === 'busy' ? (
+              <div className="w-[7px] h-[7px] rounded-full bg-amber-400 status-pulse flex-shrink-0" />
+            ) : taskActivity[activeTask.id] === 'idle' ? (
+              <div className="w-[7px] h-[7px] rounded-full bg-emerald-400 flex-shrink-0" />
+            ) : null}
+            <span className="text-[13px] font-medium text-foreground truncate">
+              {activeTask.name}
+            </span>
           </div>
-          <div className="flex items-center gap-1.5 text-foreground/60">
+          <div className="flex items-center gap-1.5 text-foreground/60 flex-shrink-0">
             <GitBranch size={11} strokeWidth={2} />
-            <span className="text-[11px] font-mono">{activeTask.branch}</span>
+            <span className="text-[11px] font-mono truncate max-w-[200px]">
+              {activeTask.branch}
+            </span>
           </div>
           {activeTask.linkedIssues && activeTask.linkedIssues.length > 0 && (
             <div className="flex items-center gap-1">
