@@ -843,17 +843,20 @@ export function App() {
       });
       if (!res.success) throw new Error(res.error || 'Merge failed');
 
-      // Fetch in worktree to update remote tracking branches
+      // Push the worktree branch to remote and fetch to update tracking branches
       if (activeTask.useWorktree) {
         try {
+          // Push the branch to its own remote so git status shows it's up to date
+          await window.electronAPI.gitPush(activeTask.path);
           await window.electronAPI.gitFetch(activeTask.path);
         } catch (fetchErr) {
-          console.warn('Fetch after merge failed:', fetchErr);
+          console.warn('Push/fetch after merge failed:', fetchErr);
           // Continue anyway - merge was successful
         }
       }
 
-      // Refresh git status for the task
+      // Refresh git status for the task (with a small delay to ensure git catches up)
+      await new Promise((resolve) => setTimeout(resolve, 100));
       await refreshGitStatus(activeTask.path);
 
       // Show success toast after refresh
