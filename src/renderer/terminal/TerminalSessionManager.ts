@@ -496,18 +496,8 @@ export class TerminalSessionManager {
   scrollToBottom() {
     const viewport = this.terminal.element?.querySelector('.xterm-viewport');
     if (viewport) {
-      viewport.scrollTo({ top: viewport.scrollHeight, behavior: 'smooth' });
-      // Emit state once smooth scroll finishes
-      const onScrollEnd = () => {
-        this.emitScrollState();
-        viewport.removeEventListener('scrollend', onScrollEnd);
-      };
-      viewport.addEventListener('scrollend', onScrollEnd);
-      // Fallback if scrollend doesn't fire
-      setTimeout(() => {
-        viewport.removeEventListener('scrollend', onScrollEnd);
-        this.emitScrollState();
-      }, 500);
+      viewport.scrollTo({ top: viewport.scrollHeight, behavior: 'auto' });
+      this.emitScrollState();
     } else {
       this.terminal.scrollToBottom();
       this.emitScrollState();
