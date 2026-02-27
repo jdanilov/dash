@@ -32,9 +32,6 @@ export function McpItem({ mcp, enabled, onToggle, onToggleDefault, onDelete }: M
     onDelete();
   };
 
-  // Extract just the filename from source path for subtitle (handle both Unix and Windows paths)
-  const sourceFileName = mcp.sourceFilePath.split(/[/\\]/).pop() || mcp.sourceFilePath;
-
   return (
     <div
       className="group relative flex items-center gap-2 px-3.5 py-[6px] rounded-md text-[13px] hover:bg-accent/50 transition-all duration-150 cursor-pointer"
@@ -55,13 +52,10 @@ export function McpItem({ mcp, enabled, onToggle, onToggleDefault, onDelete }: M
         />
       </button>
 
-      {/* MCP name and source */}
+      {/* MCP name */}
       <div className="flex-1 overflow-hidden min-w-0">
         <div className="text-muted-foreground hover:text-foreground transition-colors truncate">
           {mcp.name}
-        </div>
-        <div className="text-[10px] text-muted-foreground/50 truncate" title={mcp.sourceFilePath}>
-          {sourceFileName}
         </div>
       </div>
 
