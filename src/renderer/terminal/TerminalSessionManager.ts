@@ -450,6 +450,10 @@ export class TerminalSessionManager {
     this.ptyStarted = false;
     this.onRestartingCallback?.();
 
+    // Wait for PTY to be fully killed before restarting
+    // ptyKill is fire-and-forget, so we need a small delay to ensure cleanup
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
     // Clear terminal (optional - keeps history visible during restart)
     // this.terminal.clear();
 
