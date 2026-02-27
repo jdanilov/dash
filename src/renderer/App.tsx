@@ -307,6 +307,9 @@ export function App() {
       return;
     }
 
+    // Clear git status immediately to prevent stale data from previous task
+    setGitStatus(null);
+
     const taskCwd = activeTask.path;
     refreshGitStatus(taskCwd);
 
