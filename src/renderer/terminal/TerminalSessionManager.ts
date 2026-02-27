@@ -434,6 +434,29 @@ export class TerminalSessionManager {
     this.terminal.dispose();
   }
 
+  /**
+   * Restart the PTY session without disposing the terminal.
+   * Useful for reloading environment changes (e.g., new command library resources).
+   */
+  async restart(): Promise<void> {
+    if (this.disposed || !this.ptyStarted) return;
+
+    // Kill current PTY
+    window.electronAPI.ptyKill(this.id);
+
+    // Mark as restarting
+    this._isRestarting = true;
+    this.readyFired = false;
+    this.ptyStarted = false;
+    this.onRestartingCallback?.();
+
+    // Clear terminal (optional - keeps history visible during restart)
+    // this.terminal.clear();
+
+    // Restart PTY with resume flag to continue the session
+    await this.startPty(true);
+  }
+
   onRestarting(cb: () => void) {
     this.onRestartingCallback = cb;
   }

@@ -59,6 +59,13 @@ class SessionRegistryImpl {
     }
   }
 
+  async restart(id: string): Promise<void> {
+    const session = this.sessions.get(id);
+    if (session) {
+      await session.restart();
+    }
+  }
+
   setAllThemes(isDark: boolean): void {
     this._isDark = isDark;
     this.setAllTerminalThemes(this._themeId, isDark);

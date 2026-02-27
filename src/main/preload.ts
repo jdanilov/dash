@@ -155,6 +155,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('commandLibrary:deleteCommand', commandId),
     reinjectCommands: (args: { taskId: string; cwd: string }) =>
       ipcRenderer.invoke('commandLibrary:reinjectCommands', args),
+    prepareRestart: (args: { taskId: string; cwd: string }) =>
+      ipcRenderer.invoke('commandLibrary:prepareRestart', args),
     openInEditor: (filePath: string) => ipcRenderer.invoke('commandLibrary:openInEditor', filePath),
   },
   onLibraryCommandsChanged: (callback: (data: { taskId: string }) => void) => {

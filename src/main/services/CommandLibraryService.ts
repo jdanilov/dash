@@ -97,7 +97,15 @@ export class CommandLibraryService {
   }
 
   /**
-   * Get commands for a specific task with enabled status
+   * Get commands for a specific task with computed enabled status.
+   *
+   * Enabled state priority:
+   * 1. If task has an explicit override (in task_commands table), use that
+   * 2. Otherwise, use command's enabledByDefault setting
+   *
+   * This allows users to:
+   * - Set global defaults (enabledByDefault) for all new tasks
+   * - Override on a per-task basis for specific needs
    */
   static async getTaskCommands(taskId: string): Promise<
     Array<{
@@ -148,7 +156,8 @@ export class CommandLibraryService {
   }
 
   /**
-   * Inject enabled commands into task's .claude/commands/ directory
+   * Inject enabled commands into task's .claude/commands/ directory.
+   * Throws errors instead of silently failing to ensure PTY startup is aware of issues.
    */
   static async injectCommands(taskId: string, cwd: string): Promise<void> {
     console.error(`[CommandLibraryService] Injecting commands for task ${taskId} in ${cwd}`);
@@ -165,35 +174,65 @@ export class CommandLibraryService {
     // Ensure .claude/commands directory exists
     if (!fs.existsSync(commandsDir)) {
       console.error(`[CommandLibraryService] Creating directory: ${commandsDir}`);
-      fs.mkdirSync(commandsDir, { recursive: true });
+      try {
+        fs.mkdirSync(commandsDir, { recursive: true });
+      } catch (err) {
+        throw new Error(
+          `Failed to create commands directory: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
     }
 
-    // Clean up existing dash-managed commands (those starting with -)
-    const existingFiles = fs.readdirSync(commandsDir);
-    for (const file of existingFiles) {
-      if (file.startsWith('-') && file.endsWith('.md')) {
-        const filePath = path.join(commandsDir, file);
-        try {
-          fs.unlinkSync(filePath);
-        } catch (err) {
-          console.error(`[CommandLibraryService] Failed to remove ${filePath}:`, err);
+    // Clean up all existing library-managed commands (all .md files in this directory)
+    // This ensures old commands are removed when disabled, even if they don't follow naming conventions
+    try {
+      const existingFiles = fs.readdirSync(commandsDir);
+      const libraryCommandNames = new Set(taskCommands.map((tc) => tc.command.name));
+
+      for (const file of existingFiles) {
+        if (file.endsWith('.md')) {
+          const baseName = path.basename(file, '.md');
+          // Only remove files that are known library commands
+          if (libraryCommandNames.has(baseName)) {
+            const filePath = path.join(commandsDir, file);
+            try {
+              fs.unlinkSync(filePath);
+            } catch (err) {
+              console.error(`[CommandLibraryService] Failed to remove ${filePath}:`, err);
+            }
+          }
         }
       }
+    } catch (err) {
+      throw new Error(
+        `Failed to clean up commands directory: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
 
     // Copy enabled commands
+    const errors: string[] = [];
     for (const { command } of enabledCommands) {
       try {
         if (!fs.existsSync(command.filePath)) {
-          console.error(`[CommandLibraryService] Source file not found: ${command.filePath}`);
+          const errorMsg = `Source file not found: ${command.filePath}`;
+          console.error(`[CommandLibraryService] ${errorMsg}`);
+          errors.push(errorMsg);
           continue;
         }
 
-        const destPath = path.join(commandsDir, `${command.name}.md`);
+        // Ensure the command name doesn't already include .md extension
+        const commandName = command.name.endsWith('.md') ? command.name.slice(0, -3) : command.name;
+        const destPath = path.join(commandsDir, `${commandName}.md`);
         fs.copyFileSync(command.filePath, destPath);
       } catch (err) {
-        console.error(`[CommandLibraryService] Failed to copy ${command.name}:`, err);
+        const errorMsg = `Failed to copy ${command.name}: ${err instanceof Error ? err.message : String(err)}`;
+        console.error(`[CommandLibraryService] ${errorMsg}`);
+        errors.push(errorMsg);
       }
+    }
+
+    if (errors.length > 0) {
+      throw new Error(`Command injection had ${errors.length} error(s): ${errors.join('; ')}`);
     }
 
     console.error(
@@ -215,7 +254,11 @@ export class CommandLibraryService {
   }
 
   /**
-   * Watch a single command file for changes
+   * Watch a single command file for changes.
+   *
+   * Note: When a command file changes, we notify the UI but don't automatically
+   * re-inject into running tasks. Users must manually restart their session to
+   * pick up the changes. This is intentional to avoid disrupting active work.
    */
   private static watchFile(filePath: string): void {
     // Avoid duplicate watchers
@@ -236,7 +279,9 @@ export class CommandLibraryService {
           // Get command by path
           const command = await databaseService.getLibraryCommandByPath(filePath);
           if (command) {
-            // Notify renderer
+            // Notify renderer to show restart prompt
+            // Note: The actual file content is not updated in the database or re-injected
+            // until the user restarts their session. This prevents mid-session disruption.
             if (this.webContents && !this.webContents.isDestroyed()) {
               this.webContents.send('library:command-file-changed', { commandId: command.id });
             }
@@ -246,7 +291,7 @@ export class CommandLibraryService {
           console.error(`[CommandLibraryService] File removed: ${filePath}`);
           this.unwatchFile(filePath);
 
-          // Optionally remove from library
+          // Remove from library since the source file is gone
           const command = await databaseService.getLibraryCommandByPath(filePath);
           if (command) {
             await this.deleteCommand(command.id);

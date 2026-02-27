@@ -306,33 +306,22 @@ export class DatabaseService {
   static setTaskCommandEnabled(taskId: string, commandId: string, enabled: boolean): void {
     const db = getDb();
     const now = new Date().toISOString();
+    const id = randomUUID();
 
-    // Check if record exists
-    const existing = db
-      .select()
-      .from(taskCommands)
-      .where(and(eq(taskCommands.taskId, taskId), eq(taskCommands.commandId, commandId)))
-      .all();
-
-    if (existing.length > 0) {
-      // Update existing
-      db.update(taskCommands)
-        .set({ enabled, updatedAt: now })
-        .where(and(eq(taskCommands.taskId, taskId), eq(taskCommands.commandId, commandId)))
-        .run();
-    } else {
-      // Insert new
-      const id = randomUUID();
-      db.insert(taskCommands)
-        .values({
-          id,
-          taskId,
-          commandId,
-          enabled,
-          updatedAt: now,
-        })
-        .run();
-    }
+    // Use INSERT with onConflictDoUpdate for efficient upsert
+    db.insert(taskCommands)
+      .values({
+        id,
+        taskId,
+        commandId,
+        enabled,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [taskCommands.taskId, taskCommands.commandId],
+        set: { enabled, updatedAt: now },
+      })
+      .run();
   }
 
   private static mapLibraryCommand(row: typeof libraryCommands.$inferSelect): LibraryCommand {

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Pencil, Trash2, Star } from 'lucide-react';
 import type { LibraryCommand } from '@shared/types';
+import { DeleteCommandModal } from './DeleteCommandModal';
 
 interface CommandItemProps {
   command: LibraryCommand;
@@ -20,6 +21,7 @@ export function CommandItem({
   onDelete,
 }: CommandItemProps) {
   const [showActions, setShowActions] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const handleClick = () => {
     onToggle(!enabled);
@@ -37,9 +39,11 @@ export function CommandItem({
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm(`Delete command ${command.displayName}?`)) {
-      onDelete();
-    }
+    setShowDeleteModal(true);
+  };
+
+  const handleConfirmDelete = () => {
+    onDelete();
   };
 
   return (
@@ -107,6 +111,15 @@ export function CommandItem({
           <Trash2 size={12} strokeWidth={1.8} />
         </button>
       </div>
+
+      {/* Delete confirmation modal */}
+      {showDeleteModal && (
+        <DeleteCommandModal
+          command={command}
+          onClose={() => setShowDeleteModal(false)}
+          onConfirm={handleConfirmDelete}
+        />
+      )}
     </div>
   );
 }

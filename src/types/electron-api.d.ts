@@ -168,9 +168,7 @@ export interface ElectronAPI {
 
   // Command Library
   commandLibrary: {
-    addCommands: (
-      filePaths?: string[],
-    ) => Promise<
+    addCommands: (filePaths?: string[]) => Promise<
       IpcResponse<{
         added: number;
         updated: number;
@@ -192,6 +190,7 @@ export interface ElectronAPI {
     }) => Promise<IpcResponse<void>>;
     deleteCommand: (commandId: string) => Promise<IpcResponse<void>>;
     reinjectCommands: (args: { taskId: string; cwd: string }) => Promise<IpcResponse<void>>;
+    prepareRestart: (args: { taskId: string; cwd: string }) => Promise<IpcResponse<void>>;
     openInEditor: (filePath: string) => Promise<IpcResponse<void>>;
   };
   onLibraryCommandsChanged: (callback: (data: { taskId: string }) => void) => () => void;
@@ -227,10 +226,7 @@ export interface ElectronAPI {
   gitDiscardFile: (args: { cwd: string; filePath: string }) => Promise<IpcResponse<void>>;
   gitCommit: (args: { cwd: string; message: string }) => Promise<IpcResponse<void>>;
   gitPush: (cwd: string) => Promise<IpcResponse<void>>;
-  gitMergeToMain: (args: {
-    projectPath: string;
-    branchName: string;
-  }) => Promise<IpcResponse<void>>;
+  gitMergeToMain: (args: { projectPath: string; branchName: string }) => Promise<IpcResponse<void>>;
 
   // Commit graph
   gitGetCommitGraph: (args: {

@@ -330,12 +330,8 @@ export async function startDirectPty(options: {
 
   // Inject library commands if taskId is provided
   if (options.taskId) {
-    try {
-      const { commandLibraryService } = await import('./CommandLibraryService');
-      await commandLibraryService.injectCommands(options.taskId, options.cwd);
-    } catch (err) {
-      console.error('[startDirectPty] Failed to inject commands:', err);
-    }
+    const { commandLibraryService } = await import('./CommandLibraryService');
+    await commandLibraryService.injectCommands(options.taskId, options.cwd);
   }
 
   writeHookSettings(options.cwd, options.id);
