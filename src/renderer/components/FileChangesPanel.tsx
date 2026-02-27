@@ -319,10 +319,10 @@ export function FileChangesPanel({
               onClick={handleMerge}
               disabled={merging}
               className="px-2 py-1 rounded text-[10px] font-medium transition-colors bg-[hsl(var(--git-added)/0.15)] text-[hsl(var(--git-added))] hover:bg-[hsl(var(--git-added)/0.25)] disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
-              title="Merge to main and push"
+              title="Merge and push to project's base branch (main/master)"
             >
               <GitMerge size={10} strokeWidth={2} />
-              {merging ? 'Merging...' : 'Merge to Main'}
+              {merging ? 'Merging...' : 'Merge & Push'}
             </button>
           )}
           {onShowCommitGraph && (

@@ -835,17 +835,28 @@ export function App() {
   async function handleMergeToMain() {
     if (!activeTask || !activeProject) return;
     try {
-      const res = await window.electronAPI.gitMergeToMain({
+      const res = await window.electronAPI.gitMergeToBase({
         projectPath: activeProject.path,
         branchName: activeTask.branch,
+        baseRef: activeProject.baseRef ?? undefined,
       });
       if (!res.success) throw new Error(res.error || 'Merge failed');
 
-      // Refresh git status for both the task and project
+      // Fetch in worktree to update remote tracking branches
+      if (activeTask.useWorktree) {
+        try {
+          await window.electronAPI.gitFetch(activeTask.path);
+        } catch (fetchErr) {
+          console.warn('Fetch after merge failed:', fetchErr);
+          // Continue anyway - merge was successful
+        }
+      }
+
+      // Refresh git status for the task
       await refreshGitStatus(activeTask.path);
 
       // Show success toast after refresh
-      toast.success('Successfully merged to main and pushed');
+      toast.success('Successfully merged and pushed');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Merge failed');
       throw err; // Re-throw for FileChangesPanel to handle

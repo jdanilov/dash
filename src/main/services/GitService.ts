@@ -387,24 +387,47 @@ export class GitService {
   }
 
   /**
-   * Merge a branch into main/master and push.
+   * Fetch from remote.
+   */
+  static async fetch(cwd: string): Promise<void> {
+    try {
+      await git(cwd, ['fetch']);
+    } catch (err: unknown) {
+      const msg = String((err as { stderr?: string }).stderr || err);
+      throw new Error(`Failed to fetch: ${msg}`);
+    }
+  }
+
+  /**
+   * Merge a branch into the base branch and push.
    * @param projectPath - Path to the main project repository (not worktree)
    * @param branchName - Name of the branch to merge
+   * @param baseRef - Optional base branch to merge into (defaults to main/master auto-detect)
    */
-  static async mergeToMain(projectPath: string, branchName: string): Promise<void> {
-    // Determine the main branch name (main or master)
-    let mainBranch: string;
-    try {
-      const branchesOut = await git(projectPath, ['branch', '-a']);
-      const branches = branchesOut
-        .split('\n')
-        .map((b) => b.trim().replace(/^\*?\s+/, ''))
-        .filter(Boolean);
-      const hasMain = branches.some((b) => b === 'main' || b === 'remotes/origin/main');
-      const hasMaster = branches.some((b) => b === 'master' || b === 'remotes/origin/master');
-      mainBranch = hasMain ? 'main' : hasMaster ? 'master' : 'main';
-    } catch {
-      mainBranch = 'main'; // default fallback
+  static async mergeToBase(
+    projectPath: string,
+    branchName: string,
+    baseRef?: string,
+  ): Promise<void> {
+    // Determine the target branch
+    let targetBranch: string;
+    if (baseRef) {
+      // Use provided baseRef
+      targetBranch = baseRef;
+    } else {
+      // Auto-detect main or master
+      try {
+        const branchesOut = await git(projectPath, ['branch', '-a']);
+        const branches = branchesOut
+          .split('\n')
+          .map((b) => b.trim().replace(/^\*?\s+/, ''))
+          .filter(Boolean);
+        const hasMain = branches.some((b) => b === 'main' || b === 'remotes/origin/main');
+        const hasMaster = branches.some((b) => b === 'master' || b === 'remotes/origin/master');
+        targetBranch = hasMain ? 'main' : hasMaster ? 'master' : 'main';
+      } catch {
+        targetBranch = 'main'; // default fallback
+      }
     }
 
     // Check for uncommitted changes
@@ -415,15 +438,15 @@ export class GitService {
       );
     }
 
-    // Get current branch and switch to main if needed
+    // Get current branch and switch to target branch if needed
     const currentBranch = await this.getBranch(projectPath);
-    if (currentBranch !== mainBranch) {
-      await git(projectPath, ['checkout', mainBranch]);
+    if (currentBranch !== targetBranch) {
+      await git(projectPath, ['checkout', targetBranch]);
     }
 
     // Pull latest changes
     try {
-      await git(projectPath, ['pull', 'origin', mainBranch]);
+      await git(projectPath, ['pull', 'origin', targetBranch]);
     } catch (err: unknown) {
       const msg = String((err as { stderr?: string }).stderr || err);
       if (!/already up to date/i.test(msg)) {
@@ -446,7 +469,7 @@ export class GitService {
     }
 
     // Push to remote
-    await git(projectPath, ['push', 'origin', mainBranch]);
+    await git(projectPath, ['push', 'origin', targetBranch]);
   }
 
   // ── Commit Graph ────────────────────────────────────────

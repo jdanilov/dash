@@ -226,7 +226,12 @@ export interface ElectronAPI {
   gitDiscardFile: (args: { cwd: string; filePath: string }) => Promise<IpcResponse<void>>;
   gitCommit: (args: { cwd: string; message: string }) => Promise<IpcResponse<void>>;
   gitPush: (cwd: string) => Promise<IpcResponse<void>>;
-  gitMergeToMain: (args: { projectPath: string; branchName: string }) => Promise<IpcResponse<void>>;
+  gitFetch: (cwd: string) => Promise<IpcResponse<void>>;
+  gitMergeToBase: (args: {
+    projectPath: string;
+    branchName: string;
+    baseRef?: string;
+  }) => Promise<IpcResponse<void>>;
 
   // Commit graph
   gitGetCommitGraph: (args: {
