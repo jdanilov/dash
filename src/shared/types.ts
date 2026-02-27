@@ -210,6 +210,7 @@ export interface LibraryCommand {
   name: string;
   displayName: string;
   filePath: string;
+  type: 'command' | 'skill';
   enabledByDefault: boolean;
   createdAt: string;
   updatedAt: string;

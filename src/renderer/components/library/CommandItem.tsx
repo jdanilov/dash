@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pencil, Trash2, Star } from 'lucide-react';
+import { Pencil, Trash2, Star, Terminal, Zap } from 'lucide-react';
 import type { LibraryCommand } from '@shared/types';
 import { DeleteCommandModal } from './DeleteCommandModal';
 
@@ -10,6 +10,7 @@ interface CommandItemProps {
   onToggleDefault: (enabled: boolean) => void;
   onEdit: () => void;
   onDelete: () => void;
+  onInvoke?: () => void;
 }
 
 export function CommandItem({
@@ -19,12 +20,35 @@ export function CommandItem({
   onToggleDefault,
   onEdit,
   onDelete,
+  onInvoke,
 }: CommandItemProps) {
   const [showActions, setShowActions] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-  const handleClick = () => {
+  const isCommand = command.type === 'command';
+  const isSkill = command.type === 'skill';
+
+  const handleToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
     onToggle(!enabled);
+  };
+
+  const handleNameClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isCommand && onInvoke) {
+      // Commands: clicking name invokes the command
+      onInvoke();
+    } else {
+      // Skills: clicking name toggles
+      onToggle(!enabled);
+    }
+  };
+
+  const handleRowClick = () => {
+    // For skills, clicking anywhere toggles
+    if (isSkill) {
+      onToggle(!enabled);
+    }
   };
 
   const handleToggleDefault = (e: React.MouseEvent) => {
@@ -46,30 +70,37 @@ export function CommandItem({
     onDelete();
   };
 
+  const Icon = isCommand ? Terminal : Zap;
+
   return (
     <div
-      className="group relative flex items-center gap-2 px-3.5 py-[6px] rounded-md text-[13px] hover:bg-accent/50 cursor-pointer transition-all duration-150"
+      className="group relative flex items-center gap-2 px-3.5 py-[6px] rounded-md text-[13px] hover:bg-accent/50 transition-all duration-150"
+      style={{ cursor: isSkill ? 'pointer' : 'default' }}
+      onClick={isSkill ? handleRowClick : undefined}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >
-      {/* Toggle circle */}
+      {/* Toggle icon (Terminal for commands, Zap for skills) */}
       <button
-        onClick={handleClick}
+        onClick={handleToggle}
         className="flex-shrink-0"
         title={enabled ? 'Disable for this task' : 'Enable for this task'}
       >
-        <div
-          className={`w-[6px] h-[6px] rounded-full transition-colors ${
-            enabled ? 'bg-emerald-400' : 'bg-muted-foreground/40'
+        <Icon
+          size={12}
+          strokeWidth={1.8}
+          className={`transition-colors ${
+            enabled ? 'text-emerald-400' : 'text-muted-foreground/40'
           }`}
         />
       </button>
 
-      {/* Command name */}
+      {/* Command/Skill name */}
       <button
-        onClick={handleClick}
+        onClick={handleNameClick}
         className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left text-muted-foreground hover:text-foreground transition-colors"
-        title={command.displayName}
+        title={isCommand ? `Click to invoke ${command.displayName}` : command.displayName}
+        style={{ cursor: isCommand || isSkill ? 'pointer' : 'default' }}
       >
         {command.displayName}
       </button>

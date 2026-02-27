@@ -64,6 +64,7 @@ export function runMigrations(): void {
       name TEXT NOT NULL,
       display_name TEXT NOT NULL,
       file_path TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'command',
       enabled_by_default INTEGER DEFAULT 1,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -97,6 +98,11 @@ export function runMigrations(): void {
   }
   try {
     rawDb.exec(`ALTER TABLE tasks ADD COLUMN linked_issues TEXT`);
+  } catch {
+    /* already exists */
+  }
+  try {
+    rawDb.exec(`ALTER TABLE library_commands ADD COLUMN type TEXT NOT NULL DEFAULT 'command'`);
   } catch {
     /* already exists */
   }

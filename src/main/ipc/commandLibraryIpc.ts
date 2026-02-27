@@ -67,13 +67,14 @@ export function registerCommandLibraryIpc(): void {
     try {
       let paths = filePaths;
 
-      // If no paths provided, show file picker
+      // If no paths provided, show file/directory picker
       if (!paths) {
         const result = await dialog.showOpenDialog({
-          title: 'Add Commands',
+          title: 'Add Commands & Skills',
           buttonLabel: 'Add',
-          filters: [{ name: 'Markdown Files', extensions: ['md'] }],
-          properties: ['openFile', 'multiSelections'],
+          message:
+            'Select command files (.md), skill directories (with SKILL.md), or .claude directory',
+          properties: ['openFile', 'openDirectory', 'multiSelections'],
         });
 
         if (result.canceled || result.filePaths.length === 0) {

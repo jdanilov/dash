@@ -161,19 +161,32 @@ export function LibraryPanel({ currentTaskId, taskPath }: LibraryPanelProps) {
     try {
       const result = await window.electronAPI.commandLibrary.deleteCommand(commandId);
       if (result.success) {
-        await loadCommands();
         await loadTaskCommands();
-        toast.success('Command deleted');
+        toast.success('Resource deleted');
       } else {
-        toast.error('Failed to delete command', {
+        toast.error('Failed to delete resource', {
           description: result.error,
         });
       }
     } catch (error) {
-      console.error('Failed to delete command:', error);
-      toast.error('Failed to delete command', {
+      console.error('Failed to delete resource:', error);
+      toast.error('Failed to delete resource', {
         description: error instanceof Error ? error.message : String(error),
       });
+    }
+  };
+
+  const handleInvokeCommand = async (command: LibraryCommand) => {
+    if (!currentTaskId) return;
+
+    try {
+      // Send command to terminal without Enter (user can add args)
+      await window.electronAPI.ptyInput({
+        id: currentTaskId,
+        data: command.displayName,
+      });
+    } catch (error) {
+      console.error('Failed to invoke command:', error);
     }
   };
 
@@ -295,6 +308,9 @@ export function LibraryPanel({ currentTaskId, taskPath }: LibraryPanelProps) {
                 onToggleDefault={(enabled) => handleToggleDefault(tc.command.id, enabled)}
                 onEdit={() => handleEditCommand(tc.command.filePath)}
                 onDelete={() => handleDeleteCommand(tc.command.id)}
+                onInvoke={
+                  tc.command.type === 'command' ? () => handleInvokeCommand(tc.command) : undefined
+                }
               />
             ))}
           </div>

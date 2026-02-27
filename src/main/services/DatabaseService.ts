@@ -264,6 +264,7 @@ export class DatabaseService {
         name: data.name,
         displayName: data.displayName,
         filePath: data.filePath,
+        type: data.type,
         enabledByDefault: data.enabledByDefault ?? true,
         createdAt: now,
         updatedAt: now,
@@ -276,7 +277,9 @@ export class DatabaseService {
 
   static updateLibraryCommand(
     id: string,
-    data: Partial<Pick<LibraryCommand, 'name' | 'displayName' | 'filePath' | 'enabledByDefault'>>,
+    data: Partial<
+      Pick<LibraryCommand, 'name' | 'displayName' | 'filePath' | 'type' | 'enabledByDefault'>
+    >,
   ): void {
     const db = getDb();
     const now = new Date().toISOString();
@@ -330,6 +333,7 @@ export class DatabaseService {
       name: row.name,
       displayName: row.displayName,
       filePath: row.filePath,
+      type: row.type === 'skill' ? 'skill' : 'command',
       enabledByDefault: row.enabledByDefault ?? true,
       createdAt: row.createdAt ?? '',
       updatedAt: row.updatedAt ?? '',
