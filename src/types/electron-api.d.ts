@@ -13,6 +13,7 @@ import type {
   CommitDetail,
   RemoteControlState,
   LibraryCommand,
+  LibraryMcp,
   PermissionMode,
 } from '../shared/types';
 
@@ -197,6 +198,38 @@ export interface ElectronAPI {
   onLibraryCommandsChanged: (callback: (data: { taskId: string }) => void) => () => void;
   onLibraryCommandFileChanged: (callback: (data: { commandId: string }) => void) => () => void;
   onLibraryCommandRemoved: (callback: (data: { commandId: string }) => void) => () => void;
+
+  // MCP Library
+  mcpLibrary: {
+    addSource: (filePath?: string) => Promise<
+      IpcResponse<{
+        added: string[];
+        updated: string[];
+        errors: Array<{ name: string; error: string }>;
+      }>
+    >;
+    getAll: () => Promise<IpcResponse<LibraryMcp[]>>;
+    getSources: () => Promise<IpcResponse<string[]>>;
+    getTaskMcps: (
+      taskId: string,
+    ) => Promise<IpcResponse<Array<{ mcp: LibraryMcp; enabled: boolean }>>>;
+    toggleMcp: (args: {
+      taskId: string;
+      mcpId: string;
+      enabled: boolean;
+    }) => Promise<IpcResponse<void>>;
+    updateDefault: (args: {
+      mcpId: string;
+      enabledByDefault: boolean;
+    }) => Promise<IpcResponse<void>>;
+    deleteMcp: (mcpId: string) => Promise<IpcResponse<void>>;
+    removeSource: (sourceFilePath: string) => Promise<IpcResponse<void>>;
+    reinjectMcps: (args: { taskId: string; cwd: string }) => Promise<IpcResponse<void>>;
+    prepareRestart: (args: { taskId: string; cwd: string }) => Promise<IpcResponse<void>>;
+  };
+  onMcpSourceChanged: (callback: (data: { sourceFilePath: string }) => void) => () => void;
+  onMcpSourceRemoved: (callback: (data: { sourceFilePath: string }) => void) => () => void;
+  onMcpToggled: (callback: (data: { taskId: string }) => void) => () => void;
 
   // Git detection
   detectGit: (

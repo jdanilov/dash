@@ -181,6 +181,46 @@ contextBridge.exposeInMainWorld('electronAPI', {
     };
   },
 
+  // MCP Library
+  mcpLibrary: {
+    addSource: (filePath?: string) => ipcRenderer.invoke('mcpLibrary:addSource', filePath),
+    getAll: () => ipcRenderer.invoke('mcpLibrary:getAll'),
+    getSources: () => ipcRenderer.invoke('mcpLibrary:getSources'),
+    getTaskMcps: (taskId: string) => ipcRenderer.invoke('mcpLibrary:getTaskMcps', taskId),
+    toggleMcp: (args: { taskId: string; mcpId: string; enabled: boolean }) =>
+      ipcRenderer.invoke('mcpLibrary:toggleMcp', args),
+    updateDefault: (args: { mcpId: string; enabledByDefault: boolean }) =>
+      ipcRenderer.invoke('mcpLibrary:updateDefault', args),
+    deleteMcp: (mcpId: string) => ipcRenderer.invoke('mcpLibrary:deleteMcp', mcpId),
+    removeSource: (sourceFilePath: string) =>
+      ipcRenderer.invoke('mcpLibrary:removeSource', sourceFilePath),
+    reinjectMcps: (args: { taskId: string; cwd: string }) =>
+      ipcRenderer.invoke('mcpLibrary:reinjectMcps', args),
+    prepareRestart: (args: { taskId: string; cwd: string }) =>
+      ipcRenderer.invoke('mcpLibrary:prepareRestart', args),
+  },
+  onMcpSourceChanged: (callback: (data: { sourceFilePath: string }) => void) => {
+    const handler = (_event: unknown, data: { sourceFilePath: string }) => callback(data);
+    ipcRenderer.on('mcp:source-changed', handler);
+    return () => {
+      ipcRenderer.removeListener('mcp:source-changed', handler);
+    };
+  },
+  onMcpSourceRemoved: (callback: (data: { sourceFilePath: string }) => void) => {
+    const handler = (_event: unknown, data: { sourceFilePath: string }) => callback(data);
+    ipcRenderer.on('mcp:source-removed', handler);
+    return () => {
+      ipcRenderer.removeListener('mcp:source-removed', handler);
+    };
+  },
+  onMcpToggled: (callback: (data: { taskId: string }) => void) => {
+    const handler = (_event: unknown, data: { taskId: string }) => callback(data);
+    ipcRenderer.on('mcp:toggled', handler);
+    return () => {
+      ipcRenderer.removeListener('mcp:toggled', handler);
+    };
+  },
+
   // Git detection
   detectGit: (folderPath: string) => ipcRenderer.invoke('app:detectGit', folderPath),
   detectClaude: () => ipcRenderer.invoke('app:detectClaude'),

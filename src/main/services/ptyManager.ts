@@ -361,10 +361,13 @@ export async function startDirectPty(options: {
   }
   const env = buildDirectEnv(options.isDark ?? true);
 
-  // Inject library commands if taskId is provided
+  // Inject library resources if taskId is provided
   if (options.taskId) {
     const { commandLibraryService } = await import('./CommandLibraryService');
     await commandLibraryService.injectCommands(options.taskId, options.cwd);
+
+    const { mcpLibraryService } = await import('./McpLibraryService');
+    await mcpLibraryService.injectMcps(options.taskId, options.cwd);
   }
 
   writeHookSettings(options.cwd, options.id, permissionMode);
