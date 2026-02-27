@@ -26,6 +26,7 @@ import type {
   DiffResult,
   GithubIssue,
   RemoteControlState,
+  PermissionMode,
 } from '../shared/types';
 import { loadKeybindings, saveKeybindings, matchesBinding } from './keybindings';
 import type { KeyBindingMap } from './keybindings';
@@ -626,7 +627,7 @@ export function App() {
   async function handleCreateTask(
     name: string,
     useWorktree: boolean,
-    autoApprove: boolean,
+    permissionMode: PermissionMode,
     baseRef?: string,
     linkedIssues?: GithubIssue[],
   ) {
@@ -671,7 +672,7 @@ export function App() {
       branch,
       path: taskPath,
       useWorktree,
-      autoApprove,
+      permissionMode,
       linkedIssues: linkedIssueNumbers,
     });
 

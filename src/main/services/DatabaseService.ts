@@ -3,7 +3,14 @@ import { randomUUID } from 'crypto';
 import { initDb, getDb } from '../db/client';
 import { runMigrations } from '../db/migrate';
 import { projects, tasks, conversations, libraryCommands, taskCommands } from '../db/schema';
-import type { Project, Task, Conversation, LibraryCommand, TaskCommand } from '@shared/types';
+import type {
+  Project,
+  Task,
+  Conversation,
+  LibraryCommand,
+  TaskCommand,
+  PermissionMode,
+} from '@shared/types';
 
 export class DatabaseService {
   private static initialized = false;
@@ -93,7 +100,7 @@ export class DatabaseService {
         path: data.path,
         status: data.status ?? 'idle',
         useWorktree: data.useWorktree ?? true,
-        autoApprove: data.autoApprove ?? false,
+        permissionMode: data.permissionMode ?? 'paranoid',
         linkedIssues: linkedIssuesJson,
         createdAt: now,
         updatedAt: now,
@@ -206,7 +213,7 @@ export class DatabaseService {
       path: row.path,
       status: row.status,
       useWorktree: row.useWorktree ?? true,
-      autoApprove: row.autoApprove ?? false,
+      permissionMode: (row.permissionMode as PermissionMode) ?? 'paranoid',
       linkedIssues,
       archivedAt: row.archivedAt,
       createdAt: row.createdAt ?? '',

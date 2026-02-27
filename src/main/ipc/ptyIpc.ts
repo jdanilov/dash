@@ -27,7 +27,7 @@ export function registerPtyIpc(): void {
         cwd: string;
         cols: number;
         rows: number;
-        autoApprove?: boolean;
+        permissionMode?: 'paranoid' | 'safe' | 'yolo';
         resume?: boolean;
         isDark?: boolean;
         taskId?: string;

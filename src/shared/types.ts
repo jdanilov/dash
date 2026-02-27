@@ -1,3 +1,11 @@
+/**
+ * Permission mode for Claude Code operations.
+ * - 'paranoid': Approve all operations (safest, default)
+ * - 'safe': Auto-approve safe operations, block dangerous ones (git force, rm -rf, etc.)
+ * - 'yolo': Skip all permission checks (dangerous)
+ */
+export type PermissionMode = 'paranoid' | 'safe' | 'yolo';
+
 export interface Project {
   id: string;
   name: string;
@@ -17,7 +25,7 @@ export interface Task {
   path: string;
   status: string;
   useWorktree: boolean;
-  autoApprove: boolean;
+  permissionMode: PermissionMode;
   linkedIssues: number[] | null;
   archivedAt: string | null;
   createdAt: string;
@@ -72,7 +80,7 @@ export interface PtyOptions {
   cwd: string;
   cols: number;
   rows: number;
-  autoApprove?: boolean;
+  permissionMode?: PermissionMode;
   resume?: boolean;
 }
 

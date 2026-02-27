@@ -34,7 +34,7 @@ export function runMigrations(): void {
       path TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'idle',
       use_worktree INTEGER DEFAULT 1,
-      auto_approve INTEGER DEFAULT 0,
+      permission_mode TEXT NOT NULL DEFAULT 'paranoid' CHECK(permission_mode IN ('paranoid', 'safe', 'yolo')),
       archived_at TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -105,6 +105,28 @@ export function runMigrations(): void {
     rawDb.exec(`ALTER TABLE library_commands ADD COLUMN type TEXT NOT NULL DEFAULT 'command'`);
   } catch {
     /* already exists */
+  }
+
+  // Migration: Add permission_mode column
+  try {
+    rawDb.exec(`ALTER TABLE tasks ADD COLUMN permission_mode TEXT NOT NULL DEFAULT 'paranoid'`);
+  } catch {
+    /* already exists */
+  }
+
+  // Migration: Migrate auto_approve to permission_mode
+  try {
+    // Migrate any tasks that still have auto_approve=1 but haven't been converted to 'yolo'
+    rawDb.exec(`
+      UPDATE tasks
+      SET permission_mode = CASE
+        WHEN auto_approve = 1 THEN 'yolo'
+        ELSE 'paranoid'
+      END
+      WHERE permission_mode = 'paranoid' AND auto_approve IS NOT NULL
+    `);
+  } catch (err) {
+    console.error('[migrate] Failed to migrate auto_approve to permission_mode:', err);
   }
 
   rawDb.pragma('foreign_keys = ON');

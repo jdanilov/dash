@@ -30,7 +30,10 @@ export const tasks = sqliteTable(
     path: text('path').notNull(),
     status: text('status').notNull().default('idle'),
     useWorktree: integer('use_worktree', { mode: 'boolean' }).default(true),
-    autoApprove: integer('auto_approve', { mode: 'boolean' }).default(false),
+    permissionMode: text('permission_mode')
+      .notNull()
+      .default('paranoid')
+      .$type<'paranoid' | 'safe' | 'yolo'>(),
     linkedIssues: text('linked_issues'),
     archivedAt: text('archived_at'),
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),

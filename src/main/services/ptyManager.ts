@@ -14,6 +14,7 @@ interface PtyRecord {
   cwd: string;
   isDirectSpawn: boolean;
   owner: WebContents | null;
+  permissionMode?: 'paranoid' | 'safe' | 'yolo';
 }
 
 const ptys = new Map<string, PtyRecord>();
@@ -29,7 +30,7 @@ export function setCommitAttribution(value: string | undefined): void {
   commitAttributionSetting = value;
   // Re-write settings.local.json for all active PTYs so the change takes effect immediately
   for (const [id, rec] of ptys) {
-    writeHookSettings(rec.cwd, id);
+    writeHookSettings(rec.cwd, id, rec.permissionMode);
   }
 }
 
@@ -188,7 +189,7 @@ export function writeTaskContext(
  * Notification hooks cannot block or modify notifications but may return
  * { additionalContext: string } to inject context into the conversation.
  */
-function writeHookSettings(cwd: string, ptyId: string): void {
+function writeHookSettings(cwd: string, ptyId: string, permissionMode?: string): void {
   const port = hookServer.port;
   if (port === 0) return;
 
@@ -239,6 +240,30 @@ function writeHookSettings(cwd: string, ptyId: string): void {
     ];
   }
 
+  // Inject safety hook for "safe" permission mode
+  if (permissionMode === 'safe') {
+    const safetyHookPath = path.join(app.getAppPath(), 'scripts', 'safety-hook.sh');
+    if (fs.existsSync(safetyHookPath)) {
+      try {
+        fs.accessSync(safetyHookPath, fs.constants.R_OK | fs.constants.X_OK);
+        hookSettings.PreExecuteBash = [
+          {
+            hooks: [
+              {
+                type: 'command',
+                command: safetyHookPath,
+              },
+            ],
+          },
+        ];
+      } catch (err) {
+        console.error('[writeHookSettings] Safety hook not accessible:', safetyHookPath, err);
+      }
+    } else {
+      console.error('[writeHookSettings] Safety hook not found at:', safetyHookPath);
+    }
+  }
+
   try {
     if (!fs.existsSync(claudeDir)) {
       fs.mkdirSync(claudeDir, { recursive: true });
@@ -286,7 +311,7 @@ export async function startDirectPty(options: {
   cwd: string;
   cols: number;
   rows: number;
-  autoApprove?: boolean;
+  permissionMode?: 'paranoid' | 'safe' | 'yolo';
   resume?: boolean;
   isDark?: boolean;
   sender?: WebContents;
@@ -323,7 +348,9 @@ export async function startDirectPty(options: {
   if (options.resume) {
     args.push('-c', '-r');
   }
-  if (options.autoApprove) {
+  // Enable permission skipping for 'safe' and 'yolo' modes
+  const permissionMode = options.permissionMode ?? 'paranoid';
+  if (permissionMode === 'safe' || permissionMode === 'yolo') {
     args.push('--dangerously-skip-permissions');
   }
   const env = buildDirectEnv(options.isDark ?? true);
@@ -334,7 +361,7 @@ export async function startDirectPty(options: {
     await commandLibraryService.injectCommands(options.taskId, options.cwd);
   }
 
-  writeHookSettings(options.cwd, options.id);
+  writeHookSettings(options.cwd, options.id, permissionMode);
 
   const proc = pty.spawn(claudePath, args, {
     name: 'xterm-256color',
@@ -349,6 +376,7 @@ export async function startDirectPty(options: {
     cwd: options.cwd,
     isDirectSpawn: true,
     owner: options.sender || null,
+    permissionMode,
   };
 
   ptys.set(options.id, record);
