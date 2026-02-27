@@ -396,8 +396,10 @@ export async function startDirectPty(options: {
 }
 
 // ---------------------------------------------------------------------------
-// Custom zsh prompt via ZDOTDIR
+// Custom shell config (zsh + bash)
 // ---------------------------------------------------------------------------
+
+// --- Zsh config ---
 
 const SHELL_ZSHENV = `\
 # Save our ZDOTDIR so .zshrc can find prompt.zsh
@@ -465,6 +467,89 @@ add-zsh-hook precmd __dash_prompt_precmd
 __dash_prompt_precmd
 `;
 
+// --- Bash config ---
+
+const SHELL_BASHRC = `\
+# Dash custom bashrc — sources user's profile and rc files
+# This ensures both login shell env (/etc/profile, ~/.bash_profile)
+# and interactive shell config (~/.bashrc) are loaded.
+
+# Source system-wide bash config
+if [[ -f /etc/profile ]]; then
+  source /etc/profile
+fi
+
+# Source user's bash profile (login shell startup)
+# bash looks for these in order and sources the first found
+if [[ -f "$HOME/.bash_profile" ]]; then
+  source "$HOME/.bash_profile"
+elif [[ -f "$HOME/.bash_login" ]]; then
+  source "$HOME/.bash_login"
+elif [[ -f "$HOME/.profile" ]]; then
+  source "$HOME/.profile"
+fi
+
+# Source user's bashrc (interactive shell config)
+# This is where most users put aliases like 'll'
+if [[ -f "$HOME/.bashrc" ]]; then
+  source "$HOME/.bashrc"
+fi
+
+# Apply Dash custom prompt
+if [[ -f "\${BASH_SOURCE[0]%/*}/prompt.bash" ]]; then
+  source "\${BASH_SOURCE[0]%/*}/prompt.bash"
+fi
+`;
+
+const SHELL_BASH_PROMPT = `\
+# Dash badge-style bash prompt — uses ANSI 16 colors (themed by xterm.js)
+
+# Prevent venv from prepending (name) to prompt
+export VIRTUAL_ENV_DISABLE_PROMPT=1
+
+__dash_prompt_command() {
+  local exit_code=$?
+
+  # Current directory in cyan
+  local dir="\\[\\e[34m\\]\\w\\[\\e[0m\\]"
+
+  # Git branch if in a repo
+  local branch=""
+  if git rev-parse --git-dir >/dev/null 2>&1; then
+    local branch_name
+    branch_name=$(git symbolic-ref --short HEAD 2>/dev/null || git describe --tags --exact-match 2>/dev/null || git rev-parse --short HEAD 2>/dev/null)
+
+    # Check if dirty (staged, unstaged, or untracked files)
+    local dirty=""
+    if ! git diff --quiet HEAD -- 2>/dev/null || [[ -n "$(git ls-files --others --exclude-standard 2>/dev/null | head -1)" ]]; then
+      dirty="\\[\\e[33m\\]*\\[\\e[0m\\]"
+    fi
+
+    branch="  \\[\\e[35m\\]\${branch_name}\${dirty}\\[\\e[0m\\]"
+  fi
+
+  # Virtual env indicator
+  local venv=""
+  if [[ -n "\${VIRTUAL_ENV}" ]]; then
+    local venv_name
+    venv_name=$(basename "\${VIRTUAL_ENV}")
+    venv="  \\[\\e[36m\\]\${venv_name}\\[\\e[0m\\]"
+  fi
+
+  # Prompt symbol: green $ if last command succeeded, red $ if failed
+  local prompt_color
+  if [[ \$exit_code -eq 0 ]]; then
+    prompt_color="\\[\\e[32m\\]"
+  else
+    prompt_color="\\[\\e[31m\\]"
+  fi
+
+  PS1="\${dir}\${branch}\${venv}\\n\${prompt_color}\\$\\[\\e[0m\\] "
+}
+
+PROMPT_COMMAND=__dash_prompt_command
+`;
+
 let shellConfigDir: string | null = null;
 
 function ensureShellConfig(): string {
@@ -476,11 +561,15 @@ function ensureShellConfig(): string {
   }
 
   const files: Record<string, string> = {
+    // Zsh config
     '.zshenv': SHELL_ZSHENV,
     '.zprofile': SHELL_ZPROFILE,
     '.zshrc': SHELL_ZSHRC,
     '.zlogin': SHELL_ZLOGIN,
     'prompt.zsh': SHELL_PROMPT,
+    // Bash config
+    'bashrc': SHELL_BASHRC,
+    'prompt.bash': SHELL_BASH_PROMPT,
   };
 
   for (const [name, content] of Object.entries(files)) {
@@ -515,7 +604,7 @@ export async function startPty(options: {
   const pty = getPty();
 
   const shell = process.env.SHELL || '/bin/bash';
-  const args = ['-il']; // Login + interactive
+  let args: string[] = [];
 
   // Clean environment for shell
   const env = { ...process.env };
@@ -525,9 +614,19 @@ export async function startPty(options: {
   // Enable macOS zsh OSC 7 cwd reporting (sources /etc/zshrc_Apple_Terminal)
   env.TERM_PROGRAM = 'Apple_Terminal';
 
-  // Inject custom prompt for zsh via ZDOTDIR
+  // Configure shell-specific startup
   if (shell.endsWith('/zsh') || shell === 'zsh') {
+    // Zsh: inject custom prompt via ZDOTDIR
     env.ZDOTDIR = ensureShellConfig();
+    args = ['-il']; // Login + interactive
+  } else if (shell.endsWith('/bash') || shell === 'bash') {
+    // Bash: use custom rcfile that sources both profile and bashrc
+    const configDir = ensureShellConfig();
+    const bashrcPath = path.join(configDir, 'bashrc');
+    args = ['-i', '--rcfile', bashrcPath]; // Interactive with custom rcfile
+  } else {
+    // Other shells: use default login + interactive
+    args = ['-il'];
   }
 
   const proc = pty.spawn(shell, args, {
