@@ -7,3 +7,4 @@ release/
 .env.local
 .claude/skills/
 .claude/commands/
+.mcp.json
