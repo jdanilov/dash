@@ -58,9 +58,48 @@ export function runMigrations(): void {
 
   rawDb.exec(`CREATE INDEX IF NOT EXISTS idx_conversations_task_id ON conversations(task_id);`);
 
+  rawDb.exec(`
+    CREATE TABLE IF NOT EXISTS library_commands (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      display_name TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      enabled_by_default INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  rawDb.exec(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_library_commands_file_path ON library_commands(file_path);`,
+  );
+
+  rawDb.exec(`
+    CREATE TABLE IF NOT EXISTS task_commands (
+      id TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      command_id TEXT NOT NULL REFERENCES library_commands(id) ON DELETE CASCADE,
+      enabled INTEGER NOT NULL,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  rawDb.exec(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_task_commands_task_command ON task_commands(task_id, command_id);`,
+  );
+  rawDb.exec(`CREATE INDEX IF NOT EXISTS idx_task_commands_task_id ON task_commands(task_id);`);
+
   // Migrations for existing databases
-  try { rawDb.exec(`ALTER TABLE tasks ADD COLUMN auto_approve INTEGER DEFAULT 0`); } catch { /* already exists */ }
-  try { rawDb.exec(`ALTER TABLE tasks ADD COLUMN linked_issues TEXT`); } catch { /* already exists */ }
+  try {
+    rawDb.exec(`ALTER TABLE tasks ADD COLUMN auto_approve INTEGER DEFAULT 0`);
+  } catch {
+    /* already exists */
+  }
+  try {
+    rawDb.exec(`ALTER TABLE tasks ADD COLUMN linked_issues TEXT`);
+  } catch {
+    /* already exists */
+  }
 
   rawDb.pragma('foreign_keys = ON');
 }

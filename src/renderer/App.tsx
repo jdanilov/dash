@@ -8,6 +8,7 @@ import {
 import { LeftSidebar } from './components/LeftSidebar';
 import { MainContent } from './components/MainContent';
 import { FileChangesPanel } from './components/FileChangesPanel';
+import { LibraryPanel } from './components/library/LibraryPanel';
 import { ShellDrawerWrapper } from './components/ShellDrawerWrapper';
 import { DiffViewer } from './components/DiffViewer';
 import { CommitGraphModal } from './components/CommitGraph/CommitGraphModal';
@@ -1025,21 +1026,32 @@ export function App() {
                   setTimeout(() => setShellDrawerAnimating(false), 200);
                 }}
               >
-                <FileChangesPanel
-                  gitStatus={gitStatus}
-                  loading={gitLoading}
-                  onStageFile={handleStageFile}
-                  onUnstageFile={handleUnstageFile}
-                  onStageAll={handleStageAll}
-                  onUnstageAll={handleUnstageAll}
-                  onDiscardFile={handleDiscardFile}
-                  onViewDiff={handleViewDiff}
-                  onCommit={handleCommit}
-                  onPush={handlePush}
-                  collapsed={changesPanelCollapsed}
-                  onToggleCollapse={toggleChangesPanel}
-                  onShowCommitGraph={() => setShowCommitGraph(true)}
-                />
+                <PanelGroup direction="vertical">
+                  <Panel defaultSize={60} minSize={30}>
+                    <FileChangesPanel
+                      gitStatus={gitStatus}
+                      loading={gitLoading}
+                      onStageFile={handleStageFile}
+                      onUnstageFile={handleUnstageFile}
+                      onStageAll={handleStageAll}
+                      onUnstageAll={handleUnstageAll}
+                      onDiscardFile={handleDiscardFile}
+                      onViewDiff={handleViewDiff}
+                      onCommit={handleCommit}
+                      onPush={handlePush}
+                      collapsed={changesPanelCollapsed}
+                      onToggleCollapse={toggleChangesPanel}
+                      onShowCommitGraph={() => setShowCommitGraph(true)}
+                    />
+                  </Panel>
+                  <PanelResizeHandle className="h-[1px] bg-border/40" />
+                  <Panel defaultSize={40} minSize={20}>
+                    <LibraryPanel
+                      currentTaskId={activeTask?.id ?? null}
+                      taskPath={activeTask?.path ?? null}
+                    />
+                  </Panel>
+                </PanelGroup>
               </ShellDrawerWrapper>
             </Panel>
           </>

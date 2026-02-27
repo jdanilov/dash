@@ -102,6 +102,10 @@ app.whenReady().then(async () => {
   const { remoteControlService } = await import('./services/remoteControlService');
   remoteControlService.setSender(mainWindow.webContents);
 
+  // Initialize command library service
+  const { commandLibraryService } = await import('./services/CommandLibraryService');
+  commandLibraryService.initialize(mainWindow.webContents);
+
   // Cleanup orphaned reserve worktrees (background, non-blocking)
   setTimeout(async () => {
     try {
@@ -197,6 +201,14 @@ app.on('before-quit', async () => {
   try {
     const { stopAll } = await import('./services/FileWatcherService');
     stopAll();
+  } catch {
+    // Best effort
+  }
+
+  // Cleanup command library watchers
+  try {
+    const { commandLibraryService } = await import('./services/CommandLibraryService');
+    commandLibraryService.cleanup();
   } catch {
     // Best effort
   }

@@ -59,3 +59,38 @@ export const conversations = sqliteTable(
     taskIdIdx: index('idx_conversations_task_id').on(table.taskId),
   }),
 );
+
+export const libraryCommands = sqliteTable(
+  'library_commands',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    displayName: text('display_name').notNull(),
+    filePath: text('file_path').notNull(),
+    enabledByDefault: integer('enabled_by_default', { mode: 'boolean' }).default(true),
+    createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    filePathIdx: uniqueIndex('idx_library_commands_file_path').on(table.filePath),
+  }),
+);
+
+export const taskCommands = sqliteTable(
+  'task_commands',
+  {
+    id: text('id').primaryKey(),
+    taskId: text('task_id')
+      .notNull()
+      .references(() => tasks.id, { onDelete: 'cascade' }),
+    commandId: text('command_id')
+      .notNull()
+      .references(() => libraryCommands.id, { onDelete: 'cascade' }),
+    enabled: integer('enabled', { mode: 'boolean' }).notNull(),
+    updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    taskCommandIdx: uniqueIndex('idx_task_commands_task_command').on(table.taskId, table.commandId),
+    taskIdIdx: index('idx_task_commands_task_id').on(table.taskId),
+  }),
+);

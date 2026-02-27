@@ -290,6 +290,7 @@ export async function startDirectPty(options: {
   resume?: boolean;
   isDark?: boolean;
   sender?: WebContents;
+  taskId?: string;
 }): Promise<{
   reattached: boolean;
   isDirectSpawn: boolean;
@@ -326,6 +327,16 @@ export async function startDirectPty(options: {
     args.push('--dangerously-skip-permissions');
   }
   const env = buildDirectEnv(options.isDark ?? true);
+
+  // Inject library commands if taskId is provided
+  if (options.taskId) {
+    try {
+      const { commandLibraryService } = await import('./CommandLibraryService');
+      await commandLibraryService.injectCommands(options.taskId, options.cwd);
+    } catch (err) {
+      console.error('[startDirectPty] Failed to inject commands:', err);
+    }
+  }
 
   writeHookSettings(options.cwd, options.id);
 

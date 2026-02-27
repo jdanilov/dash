@@ -12,6 +12,7 @@ import type {
   CommitGraphData,
   CommitDetail,
   RemoteControlState,
+  LibraryCommand,
 } from '../shared/types';
 
 export interface ElectronAPI {
@@ -88,6 +89,7 @@ export interface ElectronAPI {
     autoApprove?: boolean;
     resume?: boolean;
     isDark?: boolean;
+    taskId?: string;
   }) => Promise<
     IpcResponse<{
       reattached: boolean;
@@ -119,9 +121,7 @@ export interface ElectronAPI {
 
   // Remote control
   ptyRemoteControlEnable: (ptyId: string) => Promise<IpcResponse<void>>;
-  ptyRemoteControlGetAllStates: () => Promise<
-    IpcResponse<Record<string, RemoteControlState>>
-  >;
+  ptyRemoteControlGetAllStates: () => Promise<IpcResponse<Record<string, RemoteControlState>>>;
   onRemoteControlStateChanged: (
     callback: (data: { ptyId: string; state: RemoteControlState | null }) => void,
   ) => () => void;
@@ -165,6 +165,38 @@ export interface ElectronAPI {
     issueNumber: number,
     branch: string,
   ) => Promise<IpcResponse<void>>;
+
+  // Command Library
+  commandLibrary: {
+    addCommands: (
+      filePaths?: string[],
+    ) => Promise<
+      IpcResponse<{
+        added: number;
+        updated: number;
+        errors: Array<{ path: string; error: string }>;
+      }>
+    >;
+    getAll: () => Promise<IpcResponse<LibraryCommand[]>>;
+    getTaskCommands: (
+      taskId: string,
+    ) => Promise<IpcResponse<Array<{ command: LibraryCommand; enabled: boolean }>>>;
+    toggleCommand: (args: {
+      taskId: string;
+      commandId: string;
+      enabled: boolean;
+    }) => Promise<IpcResponse<void>>;
+    updateDefault: (args: {
+      commandId: string;
+      enabledByDefault: boolean;
+    }) => Promise<IpcResponse<void>>;
+    deleteCommand: (commandId: string) => Promise<IpcResponse<void>>;
+    reinjectCommands: (args: { taskId: string; cwd: string }) => Promise<IpcResponse<void>>;
+    openInEditor: (filePath: string) => Promise<IpcResponse<void>>;
+  };
+  onLibraryCommandsChanged: (callback: (data: { taskId: string }) => void) => () => void;
+  onLibraryCommandFileChanged: (callback: (data: { commandId: string }) => void) => () => void;
+  onLibraryCommandRemoved: (callback: (data: { commandId: string }) => void) => () => void;
 
   // Git detection
   detectGit: (

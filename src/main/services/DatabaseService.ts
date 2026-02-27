@@ -1,9 +1,9 @@
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { initDb, getDb } from '../db/client';
 import { runMigrations } from '../db/migrate';
-import { projects, tasks, conversations } from '../db/schema';
-import type { Project, Task, Conversation } from '@shared/types';
+import { projects, tasks, conversations, libraryCommands, taskCommands } from '../db/schema';
+import type { Project, Task, Conversation, LibraryCommand, TaskCommand } from '@shared/types';
 
 export class DatabaseService {
   private static initialized = false;
@@ -24,9 +24,7 @@ export class DatabaseService {
     return rows.map(this.mapProject);
   }
 
-  static saveProject(
-    data: Partial<Project> & { name: string; path: string },
-  ): Project {
+  static saveProject(data: Partial<Project> & { name: string; path: string }): Project {
     const db = getDb();
     const id = data.id || randomUUID();
     const now = new Date().toISOString();
@@ -68,7 +66,12 @@ export class DatabaseService {
 
   static getTasks(projectId: string): Task[] {
     const db = getDb();
-    const rows = db.select().from(tasks).where(eq(tasks.projectId, projectId)).orderBy(desc(tasks.createdAt)).all();
+    const rows = db
+      .select()
+      .from(tasks)
+      .where(eq(tasks.projectId, projectId))
+      .orderBy(desc(tasks.createdAt))
+      .all();
     return rows.map(this.mapTask);
   }
 
@@ -137,11 +140,7 @@ export class DatabaseService {
 
   static getConversations(taskId: string): Conversation[] {
     const db = getDb();
-    const rows = db
-      .select()
-      .from(conversations)
-      .where(eq(conversations.taskId, taskId))
-      .all();
+    const rows = db.select().from(conversations).where(eq(conversations.taskId, taskId)).all();
     return rows.map(this.mapConversation);
   }
 
@@ -149,11 +148,7 @@ export class DatabaseService {
     const db = getDb();
 
     // Check if main conversation exists
-    const existing = db
-      .select()
-      .from(conversations)
-      .where(eq(conversations.taskId, taskId))
-      .all();
+    const existing = db.select().from(conversations).where(eq(conversations.taskId, taskId)).all();
 
     const main = existing.find((c) => c.isMain);
     if (main) return this.mapConversation(main);
@@ -231,4 +226,136 @@ export class DatabaseService {
       updatedAt: row.updatedAt ?? '',
     };
   }
+
+  // ── Library Commands ─────────────────────────────────────
+
+  static getAllLibraryCommands(): LibraryCommand[] {
+    const db = getDb();
+    const rows = db.select().from(libraryCommands).all();
+    return rows.map(this.mapLibraryCommand);
+  }
+
+  static getLibraryCommand(id: string): LibraryCommand | null {
+    const db = getDb();
+    const rows = db.select().from(libraryCommands).where(eq(libraryCommands.id, id)).all();
+    return rows.length > 0 ? this.mapLibraryCommand(rows[0]) : null;
+  }
+
+  static getLibraryCommandByPath(filePath: string): LibraryCommand | null {
+    const db = getDb();
+    const rows = db
+      .select()
+      .from(libraryCommands)
+      .where(eq(libraryCommands.filePath, filePath))
+      .all();
+    return rows.length > 0 ? this.mapLibraryCommand(rows[0]) : null;
+  }
+
+  static createLibraryCommand(
+    data: Omit<LibraryCommand, 'id' | 'createdAt' | 'updatedAt'>,
+  ): LibraryCommand {
+    const db = getDb();
+    const id = randomUUID();
+    const now = new Date().toISOString();
+
+    db.insert(libraryCommands)
+      .values({
+        id,
+        name: data.name,
+        displayName: data.displayName,
+        filePath: data.filePath,
+        enabledByDefault: data.enabledByDefault ?? true,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .run();
+
+    const rows = db.select().from(libraryCommands).where(eq(libraryCommands.id, id)).all();
+    return this.mapLibraryCommand(rows[0]);
+  }
+
+  static updateLibraryCommand(
+    id: string,
+    data: Partial<Pick<LibraryCommand, 'name' | 'displayName' | 'filePath' | 'enabledByDefault'>>,
+  ): void {
+    const db = getDb();
+    const now = new Date().toISOString();
+
+    db.update(libraryCommands)
+      .set({
+        ...data,
+        updatedAt: now,
+      })
+      .where(eq(libraryCommands.id, id))
+      .run();
+  }
+
+  static deleteLibraryCommand(id: string): void {
+    const db = getDb();
+    db.delete(libraryCommands).where(eq(libraryCommands.id, id)).run();
+  }
+
+  // ── Task Commands ────────────────────────────────────────
+
+  static getTaskCommands(taskId: string): TaskCommand[] {
+    const db = getDb();
+    const rows = db.select().from(taskCommands).where(eq(taskCommands.taskId, taskId)).all();
+    return rows.map(this.mapTaskCommand);
+  }
+
+  static setTaskCommandEnabled(taskId: string, commandId: string, enabled: boolean): void {
+    const db = getDb();
+    const now = new Date().toISOString();
+
+    // Check if record exists
+    const existing = db
+      .select()
+      .from(taskCommands)
+      .where(and(eq(taskCommands.taskId, taskId), eq(taskCommands.commandId, commandId)))
+      .all();
+
+    if (existing.length > 0) {
+      // Update existing
+      db.update(taskCommands)
+        .set({ enabled, updatedAt: now })
+        .where(and(eq(taskCommands.taskId, taskId), eq(taskCommands.commandId, commandId)))
+        .run();
+    } else {
+      // Insert new
+      const id = randomUUID();
+      db.insert(taskCommands)
+        .values({
+          id,
+          taskId,
+          commandId,
+          enabled,
+          updatedAt: now,
+        })
+        .run();
+    }
+  }
+
+  private static mapLibraryCommand(row: typeof libraryCommands.$inferSelect): LibraryCommand {
+    return {
+      id: row.id,
+      name: row.name,
+      displayName: row.displayName,
+      filePath: row.filePath,
+      enabledByDefault: row.enabledByDefault ?? true,
+      createdAt: row.createdAt ?? '',
+      updatedAt: row.updatedAt ?? '',
+    };
+  }
+
+  private static mapTaskCommand(row: typeof taskCommands.$inferSelect): TaskCommand {
+    return {
+      id: row.id,
+      taskId: row.taskId,
+      commandId: row.commandId,
+      enabled: row.enabled,
+      updatedAt: row.updatedAt ?? '',
+    };
+  }
 }
+
+export const databaseService = DatabaseService;

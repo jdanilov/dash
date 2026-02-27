@@ -4,6 +4,7 @@ import { registerWorktreeIpc } from './worktreeIpc';
 import { registerPtyIpc } from './ptyIpc';
 import { registerGitIpc } from './gitIpc';
 import { registerGithubIpc } from './githubIpc';
+import { registerCommandLibraryIpc } from './commandLibraryIpc';
 
 export function registerAllIpc(): void {
   registerAppIpc();
@@ -12,4 +13,5 @@ export function registerAllIpc(): void {
   registerPtyIpc();
   registerGitIpc();
   registerGithubIpc();
+  registerCommandLibraryIpc();
 }

@@ -70,8 +70,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // Remote control
-  ptyRemoteControlEnable: (ptyId: string) =>
-    ipcRenderer.invoke('pty:remoteControl:enable', ptyId),
+  ptyRemoteControlEnable: (ptyId: string) => ipcRenderer.invoke('pty:remoteControl:enable', ptyId),
   ptyRemoteControlGetAllStates: () => ipcRenderer.invoke('pty:remoteControl:getAllStates'),
   onRemoteControlStateChanged: (
     callback: (data: { ptyId: string; state: { url: string; active: boolean } | null }) => void,
@@ -140,6 +139,45 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('github:post-branch-comment', { cwd, issueNumber, branch }),
   githubLinkBranch: (cwd: string, issueNumber: number, branch: string) =>
     ipcRenderer.invoke('github:link-branch', { cwd, issueNumber, branch }),
+
+  // Command Library
+  commandLibrary: {
+    addCommands: (filePaths?: string[]) =>
+      ipcRenderer.invoke('commandLibrary:addCommands', filePaths),
+    getAll: () => ipcRenderer.invoke('commandLibrary:getAll'),
+    getTaskCommands: (taskId: string) =>
+      ipcRenderer.invoke('commandLibrary:getTaskCommands', taskId),
+    toggleCommand: (args: { taskId: string; commandId: string; enabled: boolean }) =>
+      ipcRenderer.invoke('commandLibrary:toggleCommand', args),
+    updateDefault: (args: { commandId: string; enabledByDefault: boolean }) =>
+      ipcRenderer.invoke('commandLibrary:updateDefault', args),
+    deleteCommand: (commandId: string) =>
+      ipcRenderer.invoke('commandLibrary:deleteCommand', commandId),
+    reinjectCommands: (args: { taskId: string; cwd: string }) =>
+      ipcRenderer.invoke('commandLibrary:reinjectCommands', args),
+    openInEditor: (filePath: string) => ipcRenderer.invoke('commandLibrary:openInEditor', filePath),
+  },
+  onLibraryCommandsChanged: (callback: (data: { taskId: string }) => void) => {
+    const handler = (_event: unknown, data: { taskId: string }) => callback(data);
+    ipcRenderer.on('library:commands-changed', handler);
+    return () => {
+      ipcRenderer.removeListener('library:commands-changed', handler);
+    };
+  },
+  onLibraryCommandFileChanged: (callback: (data: { commandId: string }) => void) => {
+    const handler = (_event: unknown, data: { commandId: string }) => callback(data);
+    ipcRenderer.on('library:command-file-changed', handler);
+    return () => {
+      ipcRenderer.removeListener('library:command-file-changed', handler);
+    };
+  },
+  onLibraryCommandRemoved: (callback: (data: { commandId: string }) => void) => {
+    const handler = (_event: unknown, data: { commandId: string }) => callback(data);
+    ipcRenderer.on('library:command-removed', handler);
+    return () => {
+      ipcRenderer.removeListener('library:command-removed', handler);
+    };
+  },
 
   // Git detection
   detectGit: (folderPath: string) => ipcRenderer.invoke('app:detectGit', folderPath),

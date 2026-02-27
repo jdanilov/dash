@@ -202,3 +202,27 @@ export interface RemoteControlState {
   url: string;
   active: boolean;
 }
+
+// ── Library Types ────────────────────────────────────────
+
+export interface LibraryCommand {
+  id: string;
+  name: string;
+  displayName: string;
+  filePath: string;
+  enabledByDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TaskCommand {
+  id: string;
+  taskId: string;
+  commandId: string;
+  enabled: boolean;
+  updatedAt: string;
+}
+
+export interface TaskCommandWithDetails extends TaskCommand {
+  command: LibraryCommand;
+}
