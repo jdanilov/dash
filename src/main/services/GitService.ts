@@ -386,6 +386,69 @@ export class GitService {
     await git(cwd, ['push']);
   }
 
+  /**
+   * Merge a branch into main/master and push.
+   * @param projectPath - Path to the main project repository (not worktree)
+   * @param branchName - Name of the branch to merge
+   */
+  static async mergeToMain(projectPath: string, branchName: string): Promise<void> {
+    // Determine the main branch name (main or master)
+    let mainBranch: string;
+    try {
+      const branchesOut = await git(projectPath, ['branch', '-a']);
+      const branches = branchesOut
+        .split('\n')
+        .map((b) => b.trim().replace(/^\*?\s+/, ''))
+        .filter(Boolean);
+      const hasMain = branches.some((b) => b === 'main' || b === 'remotes/origin/main');
+      const hasMaster = branches.some((b) => b === 'master' || b === 'remotes/origin/master');
+      mainBranch = hasMain ? 'main' : hasMaster ? 'master' : 'main';
+    } catch {
+      mainBranch = 'main'; // default fallback
+    }
+
+    // Check for uncommitted changes
+    const status = await this.getFileChanges(projectPath);
+    if (status.length > 0) {
+      throw new Error(
+        'Cannot merge: you have uncommitted changes in the main repository. Please commit or stash them first.',
+      );
+    }
+
+    // Get current branch and switch to main if needed
+    const currentBranch = await this.getBranch(projectPath);
+    if (currentBranch !== mainBranch) {
+      await git(projectPath, ['checkout', mainBranch]);
+    }
+
+    // Pull latest changes
+    try {
+      await git(projectPath, ['pull', 'origin', mainBranch]);
+    } catch (err: unknown) {
+      const msg = String((err as { stderr?: string }).stderr || err);
+      if (!/already up to date/i.test(msg)) {
+        throw new Error(`Failed to pull latest changes: ${msg}`);
+      }
+    }
+
+    // Merge the branch
+    try {
+      await git(projectPath, ['merge', '--no-ff', branchName, '-m', `Merge ${branchName}`]);
+    } catch (err: unknown) {
+      const msg = String((err as { stderr?: string }).stderr || err);
+      if (/conflict/i.test(msg)) {
+        throw new Error(
+          `Merge conflict detected. The main repository at ${projectPath} is now in a conflicted state. ` +
+            `Please resolve conflicts, commit, and push manually.`,
+        );
+      }
+      throw new Error(`Merge failed: ${msg}`);
+    }
+
+    // Push to remote
+    await git(projectPath, ['push', 'origin', mainBranch]);
+  }
+
   // ── Commit Graph ────────────────────────────────────────
 
   static async getCommitGraph(cwd: string, limit = 150, skip = 0): Promise<CommitGraphData> {

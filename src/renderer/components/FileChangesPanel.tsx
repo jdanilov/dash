@@ -16,6 +16,7 @@ import {
   PanelRightOpen,
   PanelRightClose,
   GitBranch,
+  GitMerge,
 } from 'lucide-react';
 import type { FileChange, FileChangeStatus, GitStatus } from '../../shared/types';
 
@@ -30,9 +31,11 @@ interface FileChangesPanelProps {
   onViewDiff: (filePath: string, staged: boolean) => void;
   onCommit: (message: string) => Promise<void>;
   onPush: () => Promise<void>;
+  onMergeToMain?: () => Promise<void>;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
   onShowCommitGraph?: () => void;
+  canMerge?: boolean;
 }
 
 const STATUS_COLORS: Record<FileChangeStatus, string> = {
@@ -172,13 +175,16 @@ export function FileChangesPanel({
   onViewDiff,
   onCommit,
   onPush,
+  onMergeToMain,
   collapsed,
   onToggleCollapse,
   onShowCommitGraph,
+  canMerge,
 }: FileChangesPanelProps) {
   const [commitMsg, setCommitMsg] = useState('');
   const [committing, setCommitting] = useState(false);
   const [pushing, setPushing] = useState(false);
+  const [merging, setMerging] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Track previous file keys to detect newly added files
@@ -271,6 +277,19 @@ export function FileChangesPanel({
     }
   }
 
+  async function handleMerge() {
+    if (!onMergeToMain) return;
+    setMerging(true);
+    setError(null);
+    try {
+      await onMergeToMain();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setMerging(false);
+    }
+  }
+
   return (
     <div className="h-full flex flex-col overflow-hidden" style={{ background: 'hsl(var(--surface-1))' }}>
       {/* Header */}
@@ -295,6 +314,17 @@ export function FileChangesPanel({
           )}
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
+          {canMerge && onMergeToMain && totalChanges === 0 && gitStatus.ahead > 0 && (
+            <button
+              onClick={handleMerge}
+              disabled={merging}
+              className="px-2 py-1 rounded text-[10px] font-medium transition-colors bg-[hsl(var(--git-added)/0.15)] text-[hsl(var(--git-added))] hover:bg-[hsl(var(--git-added)/0.25)] disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+              title="Merge to main and push"
+            >
+              <GitMerge size={10} strokeWidth={2} />
+              {merging ? 'Merging...' : 'Merge to Main'}
+            </button>
+          )}
           {onShowCommitGraph && (
             <button
               onClick={onShowCommitGraph}

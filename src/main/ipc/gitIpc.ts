@@ -158,6 +158,19 @@ export function registerGitIpc(): void {
     }
   });
 
+  // Merge branch to main/master and push
+  ipcMain.handle(
+    'git:mergeToMain',
+    async (_event, args: { projectPath: string; branchName: string }) => {
+      try {
+        await GitService.mergeToMain(args.projectPath, args.branchName);
+        return { success: true };
+      } catch (error) {
+        return { success: false, error: String(error) };
+      }
+    },
+  );
+
   // List remote branches (fetch + list)
   ipcMain.handle('git:listBranches', async (_event, cwd: string) => {
     try {

@@ -5,6 +5,7 @@ import {
   PanelResizeHandle,
   type ImperativePanelHandle,
 } from 'react-resizable-panels';
+import { toast } from 'sonner';
 import { LeftSidebar } from './components/LeftSidebar';
 import { MainContent } from './components/MainContent';
 import { FileChangesPanel } from './components/FileChangesPanel';
@@ -828,6 +829,26 @@ export function App() {
     refreshGitStatus(activeTask.path);
   }
 
+  async function handleMergeToMain() {
+    if (!activeTask || !activeProject) return;
+    try {
+      const res = await window.electronAPI.gitMergeToMain({
+        projectPath: activeProject.path,
+        branchName: activeTask.branch,
+      });
+      if (!res.success) throw new Error(res.error || 'Merge failed');
+
+      // Refresh git status for both the task and project
+      await refreshGitStatus(activeTask.path);
+
+      // Show success toast after refresh
+      toast.success('Successfully merged to main and pushed');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Merge failed');
+      throw err; // Re-throw for FileChangesPanel to handle
+    }
+  }
+
   async function handleDiscardFile(filePath: string) {
     if (!activeTask) return;
     await window.electronAPI.gitDiscardFile({ cwd: activeTask.path, filePath });
@@ -1039,9 +1060,11 @@ export function App() {
                       onViewDiff={handleViewDiff}
                       onCommit={handleCommit}
                       onPush={handlePush}
+                      onMergeToMain={handleMergeToMain}
                       collapsed={changesPanelCollapsed}
                       onToggleCollapse={toggleChangesPanel}
                       onShowCommitGraph={() => setShowCommitGraph(true)}
+                      canMerge={activeTask?.useWorktree === true}
                     />
                   </Panel>
                   <PanelResizeHandle className="h-[1px] bg-border/40" />
