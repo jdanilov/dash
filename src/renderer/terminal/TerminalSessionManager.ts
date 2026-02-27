@@ -2,6 +2,7 @@ import { Terminal } from 'xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { SerializeAddon } from '@xterm/addon-serialize';
 import { WebLinksAddon } from '@xterm/addon-web-links';
+import { SearchAddon } from '@xterm/addon-search';
 import type { TerminalSnapshot, PermissionMode, ClaudeModel } from '../../shared/types';
 import { FilePathLinkProvider } from './FilePathLinkProvider';
 import { darkTheme, lightTheme, resolveTheme } from './terminalThemes';
@@ -15,6 +16,8 @@ export class TerminalSessionManager {
   private terminal: Terminal;
   private fitAddon: FitAddon;
   private serializeAddon: SerializeAddon;
+  private searchAddon: SearchAddon;
+  private lastSearchQuery = '';
   private resizeObserver: ResizeObserver | null = null;
   private snapshotDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   private snapshotDirty = false;
@@ -79,9 +82,11 @@ export class TerminalSessionManager {
 
     this.fitAddon = new FitAddon();
     this.serializeAddon = new SerializeAddon();
+    this.searchAddon = new SearchAddon();
 
     this.terminal.loadAddon(this.fitAddon);
     this.terminal.loadAddon(this.serializeAddon);
+    this.terminal.loadAddon(this.searchAddon);
     this.terminal.loadAddon(
       new WebLinksAddon((_event, uri) => {
         window.electronAPI.openExternal(uri);
@@ -510,6 +515,30 @@ export class TerminalSessionManager {
       this.terminal.scrollToBottom();
       this.emitScrollState();
     }
+  }
+
+  /** Search for a query in the terminal buffer (case-insensitive). Returns true if found. */
+  search(query: string): boolean {
+    this.lastSearchQuery = query;
+    return this.searchAddon.findNext(query, { caseSensitive: false });
+  }
+
+  /** Find the next match. Returns true if found. */
+  searchNext(): boolean {
+    if (!this.lastSearchQuery) return false;
+    return this.searchAddon.findNext(this.lastSearchQuery, { caseSensitive: false });
+  }
+
+  /** Find the previous match. Returns true if found. */
+  searchPrev(): boolean {
+    if (!this.lastSearchQuery) return false;
+    return this.searchAddon.findPrevious(this.lastSearchQuery, { caseSensitive: false });
+  }
+
+  /** Clear search decorations. */
+  clearSearch(): void {
+    this.lastSearchQuery = '';
+    this.searchAddon.clearDecorations();
   }
 
   setTheme(isDark: boolean) {
