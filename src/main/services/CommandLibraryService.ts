@@ -463,7 +463,6 @@ export class CommandLibraryService {
 
     // Ensure .claude/commands directory exists
     if (!fs.existsSync(commandsDir)) {
-      console.error(`[CommandLibraryService] Creating directory: ${commandsDir}`);
       try {
         fs.mkdirSync(commandsDir, { recursive: true });
       } catch (err) {
@@ -475,7 +474,6 @@ export class CommandLibraryService {
 
     // Ensure .claude/skills directory exists
     if (!fs.existsSync(skillsDir)) {
-      console.error(`[CommandLibraryService] Creating directory: ${skillsDir}`);
       try {
         fs.mkdirSync(skillsDir, { recursive: true });
       } catch (err) {

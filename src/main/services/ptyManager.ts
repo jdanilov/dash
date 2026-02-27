@@ -242,7 +242,15 @@ function writeHookSettings(cwd: string, ptyId: string, permissionMode?: string):
 
   // Inject safety hook for "safe" permission mode
   if (permissionMode === 'safe') {
-    const safetyHookPath = path.join(app.getAppPath(), 'scripts', 'safety-hook.sh');
+    // In dev: app.getAppPath() -> /path/to/dash/dist/main/main
+    // In prod: app.getAppPath() -> /Applications/Dash.app/Contents/Resources/app.asar
+    // Scripts folder is at project root in dev, packaged alongside dist in prod
+    const appPath = app.getAppPath();
+    const projectRoot = appPath.endsWith('.asar')
+      ? path.dirname(appPath) // In prod, scripts are next to app.asar
+      : path.join(appPath, '..', '..', '..'); // In dev, go up from dist/main/main
+    const safetyHookPath = path.join(projectRoot, 'scripts', 'safety-hook.sh');
+
     if (fs.existsSync(safetyHookPath)) {
       try {
         fs.accessSync(safetyHookPath, fs.constants.R_OK | fs.constants.X_OK);
