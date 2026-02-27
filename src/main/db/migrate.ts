@@ -129,5 +129,12 @@ export function runMigrations(): void {
     console.error('[migrate] Failed to migrate auto_approve to permission_mode:', err);
   }
 
+  // Migration: Add model column for Claude model selection
+  try {
+    rawDb.exec(`ALTER TABLE tasks ADD COLUMN model TEXT NOT NULL DEFAULT 'opus'`);
+  } catch {
+    /* already exists */
+  }
+
   rawDb.pragma('foreign_keys = ON');
 }

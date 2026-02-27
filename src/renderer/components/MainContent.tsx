@@ -199,6 +199,7 @@ export function MainContent({
           id={activeTask.id}
           cwd={activeTask.path}
           permissionMode={activeTask.permissionMode}
+          model={activeTask.model}
         />
       </div>
     </div>

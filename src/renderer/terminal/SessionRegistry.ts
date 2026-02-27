@@ -1,11 +1,12 @@
 import { TerminalSessionManager } from './TerminalSessionManager';
-import type { PermissionMode } from '../../shared/types';
+import type { PermissionMode, ClaudeModel } from '../../shared/types';
 
 interface AttachOptions {
   id: string;
   cwd: string;
   container: HTMLElement;
   permissionMode?: PermissionMode;
+  model?: ClaudeModel;
   shellOnly?: boolean;
   themeId?: string;
 }
@@ -22,6 +23,7 @@ class SessionRegistryImpl {
         id: opts.id,
         cwd: opts.cwd,
         permissionMode: opts.permissionMode,
+        model: opts.model,
         isDark: this._isDark,
         shellOnly: opts.shellOnly,
         themeId: opts.themeId ?? this._themeId,

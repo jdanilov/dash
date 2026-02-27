@@ -318,6 +318,7 @@ export async function startDirectPty(options: {
   cols: number;
   rows: number;
   permissionMode?: 'paranoid' | 'safe' | 'yolo';
+  model?: 'opus' | 'sonnet' | 'haiku';
   resume?: boolean;
   isDark?: boolean;
   sender?: WebContents;
@@ -358,6 +359,11 @@ export async function startDirectPty(options: {
   const permissionMode = options.permissionMode ?? 'paranoid';
   if (permissionMode === 'safe' || permissionMode === 'yolo') {
     args.push('--dangerously-skip-permissions');
+  }
+  // Set model (opus is default, so only pass flag for sonnet/haiku)
+  const model = options.model ?? 'opus';
+  if (model !== 'opus') {
+    args.push('--model', model);
   }
   const env = buildDirectEnv(options.isDark ?? true);
 
