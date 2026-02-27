@@ -55,6 +55,9 @@ export function TaskModal({ projectPath, onClose, onCreate }: TaskModalProps) {
   // Permission mode dropdown state
   const [permissionDropdownOpen, setPermissionDropdownOpen] = useState(false);
 
+  // Model dropdown state
+  const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
+
   // GitHub issue picker state
   const [ghAvailable, setGhAvailable] = useState(false);
   const [issueQuery, setIssueQuery] = useState('');
@@ -66,6 +69,7 @@ export function TaskModal({ projectPath, onClose, onCreate }: TaskModalProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const permissionDropdownRef = useRef<HTMLDivElement>(null);
+  const modelDropdownRef = useRef<HTMLDivElement>(null);
   const issueDropdownRef = useRef<HTMLDivElement>(null);
   const issueSearchInputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -97,6 +101,9 @@ export function TaskModal({ projectPath, onClose, onCreate }: TaskModalProps) {
         !permissionDropdownRef.current.contains(e.target as Node)
       ) {
         setPermissionDropdownOpen(false);
+      }
+      if (modelDropdownRef.current && !modelDropdownRef.current.contains(e.target as Node)) {
+        setModelDropdownOpen(false);
       }
       if (issueDropdownRef.current && !issueDropdownRef.current.contains(e.target as Node)) {
         setIssueDropdownOpen(false);
@@ -595,31 +602,91 @@ export function TaskModal({ projectPath, onClose, onCreate }: TaskModalProps) {
           </div>
 
           {/* Model selector */}
-          <div className="mb-6">
-            <label className="block mb-2">
-              <div className="flex items-center gap-2 mb-2">
+          <div className="mb-6" ref={modelDropdownRef}>
+            <label className="block text-[12px] font-medium text-muted-foreground/70 mb-2">
+              <div className="flex items-center gap-2">
                 <Cpu size={13} className="text-muted-foreground/40" strokeWidth={1.8} />
-                <span className="text-[12px] font-medium text-muted-foreground/70">Model</span>
+                Model
               </div>
-              <select
-                value={model}
-                onChange={(e) => {
-                  const m = e.target.value as ClaudeModel;
-                  setModel(m);
-                  localStorage.setItem('claudeModel', m);
-                }}
-                className="w-full px-3.5 py-2.5 rounded-lg bg-background border border-input/60 text-foreground text-[13px] focus:outline-none focus:ring-2 focus:ring-ring/30 focus:border-ring/50 transition-all duration-150"
-              >
-                <option value="opus">Opus</option>
-                <option value="sonnet">Sonnet</option>
-                <option value="haiku">Haiku</option>
-              </select>
             </label>
-            <p className="text-[11px] text-muted-foreground/40 mt-1.5">
-              {model === 'opus' && 'Most capable model (default)'}
-              {model === 'sonnet' && 'Balanced performance and speed'}
-              {model === 'haiku' && 'Fastest, most economical'}
-            </p>
+
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
+                className="w-full flex items-center gap-2 px-3.5 py-2.5 rounded-lg bg-background border border-input/60 text-foreground text-[13px] focus:outline-none focus:ring-2 focus:ring-ring/30 focus:border-ring/50 transition-all duration-150 hover:border-input"
+              >
+                <Cpu size={12} className="text-muted-foreground/40 shrink-0" strokeWidth={1.8} />
+                <span className="flex-1 text-left">
+                  {model === 'opus' && 'Opus'}
+                  {model === 'sonnet' && 'Sonnet'}
+                  {model === 'haiku' && 'Haiku'}
+                </span>
+                <ChevronDown
+                  size={13}
+                  className={`text-muted-foreground/40 shrink-0 transition-transform duration-150 ${modelDropdownOpen ? 'rotate-180' : ''}`}
+                />
+              </button>
+
+              {modelDropdownOpen && (
+                <div className="absolute z-50 mt-1 w-full bg-card border border-border/60 rounded-lg shadow-xl shadow-black/30 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModel('opus');
+                      localStorage.setItem('claudeModel', 'opus');
+                      setModelDropdownOpen(false);
+                    }}
+                    className={`w-full flex items-start gap-2 px-3 py-2.5 text-left hover:bg-accent/60 transition-colors duration-100 ${
+                      model === 'opus' ? 'bg-accent/40' : ''
+                    }`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[12px] text-foreground/80 font-medium">Opus</div>
+                      <div className="text-[11px] text-muted-foreground/50 mt-0.5">
+                        Most capable model (default)
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModel('sonnet');
+                      localStorage.setItem('claudeModel', 'sonnet');
+                      setModelDropdownOpen(false);
+                    }}
+                    className={`w-full flex items-start gap-2 px-3 py-2.5 text-left hover:bg-accent/60 transition-colors duration-100 ${
+                      model === 'sonnet' ? 'bg-accent/40' : ''
+                    }`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[12px] text-foreground/80 font-medium">Sonnet</div>
+                      <div className="text-[11px] text-muted-foreground/50 mt-0.5">
+                        Balanced performance and speed
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModel('haiku');
+                      localStorage.setItem('claudeModel', 'haiku');
+                      setModelDropdownOpen(false);
+                    }}
+                    className={`w-full flex items-start gap-2 px-3 py-2.5 text-left hover:bg-accent/60 transition-colors duration-100 ${
+                      model === 'haiku' ? 'bg-accent/40' : ''
+                    }`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[12px] text-foreground/80 font-medium">Haiku</div>
+                      <div className="text-[11px] text-muted-foreground/50 mt-0.5">
+                        Fastest, most economical
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Actions */}

@@ -428,7 +428,7 @@ export function LibraryPanel({ currentTaskId, taskPath }: LibraryPanelProps) {
           </button>
           {showAddMenu && (
             <div
-              className="absolute right-0 top-full mt-1 z-50 min-w-[140px] rounded-md border border-border bg-surface-1 shadow-lg py-1"
+              className="absolute right-0 top-full mt-1 z-50 min-w-[170px] rounded-md border border-border bg-surface-1 shadow-lg py-1"
               onMouseLeave={() => setShowAddMenu(false)}
             >
               <button
@@ -438,13 +438,22 @@ export function LibraryPanel({ currentTaskId, taskPath }: LibraryPanelProps) {
                 }}
                 className="w-full px-3 py-1.5 text-left text-xs text-foreground hover:bg-accent/50 transition-colors"
               >
-                Add Command/Skill
+                Import .claude/commands
+              </button>
+              <button
+                onClick={() => {
+                  setShowAddMenu(false);
+                  handleAddCommands();
+                }}
+                className="w-full px-3 py-1.5 text-left text-xs text-foreground hover:bg-accent/50 transition-colors"
+              >
+                Import .claude/skills
               </button>
               <button
                 onClick={handleAddMcp}
                 className="w-full px-3 py-1.5 text-left text-xs text-foreground hover:bg-accent/50 transition-colors"
               >
-                Add MCP (.mcp.json)
+                Import .mcp.json
               </button>
             </div>
           )}
