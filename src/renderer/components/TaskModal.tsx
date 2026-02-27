@@ -479,7 +479,7 @@ export function TaskModal({ projectPath, onClose, onCreate }: TaskModalProps) {
             <label className="block mb-2">
               <div className="flex items-center gap-2 mb-2">
                 <Zap size={13} className="text-muted-foreground/40" strokeWidth={1.8} />
-                <span className="text-[13px] font-medium text-foreground/80">Permission Mode</span>
+                <span className="text-[12px] font-medium text-muted-foreground/70">Permission Mode</span>
               </div>
               <select
                 value={permissionMode}
@@ -488,16 +488,16 @@ export function TaskModal({ projectPath, onClose, onCreate }: TaskModalProps) {
                   setPermissionMode(mode);
                   localStorage.setItem('permissionMode', mode);
                 }}
-                className="w-full px-3 py-2 bg-surface-0 border border-border rounded-md text-[13px] text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="w-full px-3.5 py-2.5 rounded-lg bg-background border border-input/60 text-foreground text-[13px] focus:outline-none focus:ring-2 focus:ring-ring/30 focus:border-ring/50 transition-all duration-150"
               >
-                <option value="paranoid">Paranoid - Approve everything</option>
-                <option value="safe">Safe Auto-Approve - Block only dangerous operations</option>
-                <option value="yolo">Yolo - Skip all permissions</option>
+                <option value="paranoid">Paranoid</option>
+                <option value="safe">Safe auto-approve</option>
+                <option value="yolo">Yolo</option>
               </select>
             </label>
             <p className="text-[11px] text-muted-foreground/40 mt-1.5">
               {permissionMode === 'paranoid' && 'Claude will request approval for all operations'}
-              {permissionMode === 'safe' && 'Auto-approve safe operations, block dangerous ones (git force, rm -rf, etc.)'}
+              {permissionMode === 'safe' && 'Block only dangerous operations'}
               {permissionMode === 'yolo' && 'Skip all permission prompts (dangerous)'}
             </p>
           </div>

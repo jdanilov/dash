@@ -88,11 +88,12 @@ export class CommandLibraryService {
         result.errors.push({ path: filePath, error: addResult.error || 'Unknown error' });
       }
     } else if (stats.isDirectory()) {
-      // Directory - check if it's a skill or .claude directory
+      // Directory - check if it's a skill, .claude directory, or commands/skills directory
       const skillMdPath = path.join(filePath, 'SKILL.md');
       const skillMdPathLower = path.join(filePath, 'skill.md');
       const claudeCommandsDir = path.join(filePath, 'commands');
       const claudeSkillsDir = path.join(filePath, 'skills');
+      const dirName = path.basename(filePath);
 
       if (fs.existsSync(skillMdPath) || fs.existsSync(skillMdPathLower)) {
         // It's a skill directory
@@ -106,6 +107,18 @@ export class CommandLibraryService {
       } else if (fs.existsSync(claudeCommandsDir) || fs.existsSync(claudeSkillsDir)) {
         // It's a .claude directory - bulk import
         const bulkResult = await this.bulkImportClaudeDir(filePath);
+        result.added += bulkResult.added;
+        result.updated += bulkResult.updated;
+        result.errors.push(...bulkResult.errors);
+      } else if (dirName === 'commands') {
+        // Direct commands directory - import all .md files
+        const bulkResult = await this.bulkImportCommandsDir(filePath);
+        result.added += bulkResult.added;
+        result.updated += bulkResult.updated;
+        result.errors.push(...bulkResult.errors);
+      } else if (dirName === 'skills') {
+        // Direct skills directory - import all skill subdirectories
+        const bulkResult = await this.bulkImportSkillsDir(filePath);
         result.added += bulkResult.added;
         result.updated += bulkResult.updated;
         result.errors.push(...bulkResult.errors);
@@ -282,6 +295,86 @@ export class CommandLibraryService {
           error: `Failed to scan skills: ${error instanceof Error ? error.message : String(error)}`,
         });
       }
+    }
+
+    return result;
+  }
+
+  /**
+   * Bulk import from a commands directory
+   * Scans all .md files in the directory
+   */
+  private static async bulkImportCommandsDir(commandsDir: string): Promise<{
+    added: number;
+    updated: number;
+    errors: Array<{ path: string; error: string }>;
+  }> {
+    const result = { added: 0, updated: 0, errors: [] as Array<{ path: string; error: string }> };
+
+    try {
+      const files = fs.readdirSync(commandsDir);
+      for (const file of files) {
+        if (file.endsWith('.md')) {
+          const filePath = path.join(commandsDir, file);
+          const addResult = await this.addCommand(filePath);
+          if (addResult.success) {
+            if (addResult.updated) result.updated++;
+            else result.added++;
+          } else {
+            result.errors.push({ path: filePath, error: addResult.error || 'Unknown error' });
+          }
+        }
+      }
+    } catch (error) {
+      result.errors.push({
+        path: commandsDir,
+        error: `Failed to scan commands: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
+
+    return result;
+  }
+
+  /**
+   * Bulk import from a skills directory
+   * Scans all subdirectories containing SKILL.md
+   */
+  private static async bulkImportSkillsDir(skillsDir: string): Promise<{
+    added: number;
+    updated: number;
+    errors: Array<{ path: string; error: string }>;
+  }> {
+    const result = { added: 0, updated: 0, errors: [] as Array<{ path: string; error: string }> };
+
+    try {
+      const dirs = fs.readdirSync(skillsDir);
+      for (const dir of dirs) {
+        const skillDirPath = path.join(skillsDir, dir);
+        const stats = fs.statSync(skillDirPath);
+
+        if (stats.isDirectory()) {
+          const skillMdPath = path.join(skillDirPath, 'SKILL.md');
+          const skillMdPathLower = path.join(skillDirPath, 'skill.md');
+
+          if (fs.existsSync(skillMdPath) || fs.existsSync(skillMdPathLower)) {
+            const addResult = await this.addSkill(skillDirPath);
+            if (addResult.success) {
+              if (addResult.updated) result.updated++;
+              else result.added++;
+            } else {
+              result.errors.push({
+                path: skillDirPath,
+                error: addResult.error || 'Unknown error',
+              });
+            }
+          }
+        }
+      }
+    } catch (error) {
+      result.errors.push({
+        path: skillsDir,
+        error: `Failed to scan skills: ${error instanceof Error ? error.message : String(error)}`,
+      });
     }
 
     return result;

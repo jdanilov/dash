@@ -439,7 +439,12 @@ export class TerminalSessionManager {
    * Useful for reloading environment changes (e.g., new command library resources).
    */
   async restart(): Promise<void> {
-    if (this.disposed || !this.ptyStarted) return;
+    if (this.disposed) {
+      throw new Error('Cannot restart: session has been disposed');
+    }
+    if (!this.ptyStarted) {
+      throw new Error('Cannot restart: terminal session has not started yet');
+    }
 
     // Kill current PTY
     window.electronAPI.ptyKill(this.id);
@@ -538,6 +543,9 @@ export class TerminalSessionManager {
 
   private fit() {
     try {
+      // Check if user was at bottom before fit (so we can restore scroll position)
+      const wasAtBottom = this.isAtBottom();
+
       this.fitAddon.fit();
       const dims = this.fitAddon.proposeDimensions();
       if (dims && dims.cols > 0 && dims.rows > 0) {
@@ -549,6 +557,14 @@ export class TerminalSessionManager {
           id: this.id,
           cols: dims.cols,
           rows: dims.rows,
+        });
+      }
+
+      // If user was at bottom, keep them at bottom after resize
+      if (wasAtBottom) {
+        // Use requestAnimationFrame to ensure terminal has rendered after resize
+        requestAnimationFrame(() => {
+          this.scrollToBottom();
         });
       }
     } catch {

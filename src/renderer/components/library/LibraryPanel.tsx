@@ -291,7 +291,7 @@ export function LibraryPanel({ currentTaskId, taskPath }: LibraryPanelProps) {
       {/* Commands list */}
       <div className="flex-1 overflow-y-auto">
         {taskCommands.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-2 p-6 text-center">
+          <div className="flex flex-col items-center justify-center h-full gap-2">
             <div className="w-8 h-8 rounded-xl bg-accent/40 flex items-center justify-center">
               <Library size={14} className="text-foreground/50" strokeWidth={1.5} />
             </div>
