@@ -208,6 +208,14 @@ export class TerminalSessionManager {
       const xtermEl = this.terminal.element;
       if (xtermEl && xtermEl.parentElement !== container) {
         container.appendChild(xtermEl);
+        // Force fit after layout stabilizes - use double rAF to ensure flex layout is complete
+        requestAnimationFrame(() => {
+          if (gen !== this.attachGeneration) return;
+          requestAnimationFrame(() => {
+            if (gen !== this.attachGeneration) return;
+            this.fit();
+          });
+        });
       }
     }
 
