@@ -1,16 +1,16 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import * as crypto from 'crypto';
 import type { FSWatcher } from 'fs';
 import { type WebContents } from 'electron';
 import type { LibraryCommand, TaskCommand } from '@shared/types';
 import { databaseService } from './DatabaseService';
 
 /**
- * CommandLibraryService manages shared command resources.
- * - Adds commands from external files
- * - Watches command files for changes
- * - Injects enabled commands into task directories
+ * CommandLibraryService manages shared command and skill resources.
+ * - Adds commands (single .md files) and skills (directories with SKILL.md)
+ * - Supports bulk import from .claude directories
+ * - Watches resource files for changes
+ * - Injects enabled resources into task directories
  */
 export class CommandLibraryService {
   private static watchers = new Map<string, FSWatcher>();
@@ -25,7 +25,11 @@ export class CommandLibraryService {
   }
 
   /**
-   * Add commands from file paths (deduped by path, overrides if exists)
+   * Add commands and skills from file/directory paths (deduped by path, overrides if exists)
+   * Supports:
+   * - Single .md files (commands)
+   * - Directories containing SKILL.md (skills)
+   * - .claude directories (bulk import: commands/*.md + skills/*)
    */
   static async addCommands(filePaths: string[]): Promise<{
     added: number;
@@ -36,51 +40,246 @@ export class CommandLibraryService {
 
     for (const filePath of filePaths) {
       try {
-        // Validate file exists
-        if (!fs.existsSync(filePath)) {
-          result.errors.push({ path: filePath, error: 'File not found' });
-          continue;
-        }
-
-        // Validate file extension
-        if (!filePath.endsWith('.md')) {
-          result.errors.push({ path: filePath, error: 'Only .md files are supported' });
-          continue;
-        }
-
-        // Extract command name from filename (e.g., "commit.md" -> "commit")
-        const fileName = path.basename(filePath, '.md');
-        const displayName = `/${fileName}`;
-        const absolutePath = path.resolve(filePath);
-
-        // Check if command already exists at this path
-        const existing = await databaseService.getLibraryCommandByPath(absolutePath);
-
-        if (existing) {
-          // Update existing
-          await databaseService.updateLibraryCommand(existing.id, {
-            name: fileName,
-            displayName,
-            filePath: absolutePath,
-          });
-          result.updated++;
-        } else {
-          // Add new
-          await databaseService.createLibraryCommand({
-            name: fileName,
-            displayName,
-            filePath: absolutePath,
-            enabledByDefault: true,
-          });
-          result.added++;
-
-          // Start watching new file
-          this.watchFile(absolutePath);
-        }
+        const processResult = await this.processPath(filePath);
+        result.added += processResult.added;
+        result.updated += processResult.updated;
+        result.errors.push(...processResult.errors);
       } catch (error) {
         result.errors.push({
           path: filePath,
           error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Process a single path (file or directory)
+   */
+  private static async processPath(filePath: string): Promise<{
+    added: number;
+    updated: number;
+    errors: Array<{ path: string; error: string }>;
+  }> {
+    const result = { added: 0, updated: 0, errors: [] as Array<{ path: string; error: string }> };
+
+    // Validate path exists
+    if (!fs.existsSync(filePath)) {
+      result.errors.push({ path: filePath, error: 'Path not found' });
+      return result;
+    }
+
+    const stats = fs.statSync(filePath);
+
+    if (stats.isFile()) {
+      // Single file - must be .md (command)
+      if (!filePath.endsWith('.md')) {
+        result.errors.push({ path: filePath, error: 'Only .md files are supported' });
+        return result;
+      }
+
+      const addResult = await this.addCommand(filePath);
+      if (addResult.success) {
+        if (addResult.updated) result.updated++;
+        else result.added++;
+      } else {
+        result.errors.push({ path: filePath, error: addResult.error || 'Unknown error' });
+      }
+    } else if (stats.isDirectory()) {
+      // Directory - check if it's a skill or .claude directory
+      const skillMdPath = path.join(filePath, 'SKILL.md');
+      const skillMdPathLower = path.join(filePath, 'skill.md');
+      const claudeCommandsDir = path.join(filePath, 'commands');
+      const claudeSkillsDir = path.join(filePath, 'skills');
+
+      if (fs.existsSync(skillMdPath) || fs.existsSync(skillMdPathLower)) {
+        // It's a skill directory
+        const addResult = await this.addSkill(filePath);
+        if (addResult.success) {
+          if (addResult.updated) result.updated++;
+          else result.added++;
+        } else {
+          result.errors.push({ path: filePath, error: addResult.error || 'Unknown error' });
+        }
+      } else if (fs.existsSync(claudeCommandsDir) || fs.existsSync(claudeSkillsDir)) {
+        // It's a .claude directory - bulk import
+        const bulkResult = await this.bulkImportClaudeDir(filePath);
+        result.added += bulkResult.added;
+        result.updated += bulkResult.updated;
+        result.errors.push(...bulkResult.errors);
+      } else {
+        result.errors.push({
+          path: filePath,
+          error:
+            'Directory must contain SKILL.md (for skills) or commands/skills subdirectories (for bulk import)',
+        });
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Add a single command from .md file
+   */
+  private static async addCommand(
+    filePath: string,
+  ): Promise<{ success: boolean; updated: boolean; error?: string }> {
+    try {
+      const fileName = path.basename(filePath, '.md');
+      const displayName = `/${fileName}`;
+      const absolutePath = path.resolve(filePath);
+
+      // Check if command already exists at this path
+      const existing = await databaseService.getLibraryCommandByPath(absolutePath);
+
+      if (existing) {
+        // Update existing
+        await databaseService.updateLibraryCommand(existing.id, {
+          name: fileName,
+          displayName,
+          filePath: absolutePath,
+          type: 'command',
+        });
+        return { success: true, updated: true };
+      } else {
+        // Add new
+        await databaseService.createLibraryCommand({
+          name: fileName,
+          displayName,
+          filePath: absolutePath,
+          type: 'command',
+          enabledByDefault: true,
+        });
+
+        // Start watching new file
+        this.watchFile(absolutePath);
+        return { success: true, updated: false };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        updated: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  /**
+   * Add a skill from directory containing SKILL.md
+   */
+  private static async addSkill(
+    skillDir: string,
+  ): Promise<{ success: boolean; updated: boolean; error?: string }> {
+    try {
+      const skillName = path.basename(skillDir);
+      const displayName = skillName; // No slash for skills
+      const absolutePath = path.resolve(skillDir);
+
+      // Check if skill already exists at this path
+      const existing = await databaseService.getLibraryCommandByPath(absolutePath);
+
+      if (existing) {
+        // Update existing
+        await databaseService.updateLibraryCommand(existing.id, {
+          name: skillName,
+          displayName,
+          filePath: absolutePath,
+          type: 'skill',
+        });
+        return { success: true, updated: true };
+      } else {
+        // Add new
+        await databaseService.createLibraryCommand({
+          name: skillName,
+          displayName,
+          filePath: absolutePath,
+          type: 'skill',
+          enabledByDefault: true,
+        });
+
+        // Start watching skill directory
+        this.watchFile(absolutePath);
+        return { success: true, updated: false };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        updated: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  /**
+   * Bulk import from .claude directory
+   * Scans commands/*.md and skills/* directories
+   */
+  private static async bulkImportClaudeDir(claudeDir: string): Promise<{
+    added: number;
+    updated: number;
+    errors: Array<{ path: string; error: string }>;
+  }> {
+    const result = { added: 0, updated: 0, errors: [] as Array<{ path: string; error: string }> };
+
+    // Import commands from commands/
+    const commandsDir = path.join(claudeDir, 'commands');
+    if (fs.existsSync(commandsDir)) {
+      try {
+        const files = fs.readdirSync(commandsDir);
+        for (const file of files) {
+          if (file.endsWith('.md')) {
+            const filePath = path.join(commandsDir, file);
+            const addResult = await this.addCommand(filePath);
+            if (addResult.success) {
+              if (addResult.updated) result.updated++;
+              else result.added++;
+            } else {
+              result.errors.push({ path: filePath, error: addResult.error || 'Unknown error' });
+            }
+          }
+        }
+      } catch (error) {
+        result.errors.push({
+          path: commandsDir,
+          error: `Failed to scan commands: ${error instanceof Error ? error.message : String(error)}`,
+        });
+      }
+    }
+
+    // Import skills from skills/
+    const skillsDir = path.join(claudeDir, 'skills');
+    if (fs.existsSync(skillsDir)) {
+      try {
+        const dirs = fs.readdirSync(skillsDir);
+        for (const dir of dirs) {
+          const skillDirPath = path.join(skillsDir, dir);
+          const stats = fs.statSync(skillDirPath);
+
+          if (stats.isDirectory()) {
+            const skillMdPath = path.join(skillDirPath, 'SKILL.md');
+            const skillMdPathLower = path.join(skillDirPath, 'skill.md');
+
+            if (fs.existsSync(skillMdPath) || fs.existsSync(skillMdPathLower)) {
+              const addResult = await this.addSkill(skillDirPath);
+              if (addResult.success) {
+                if (addResult.updated) result.updated++;
+                else result.added++;
+              } else {
+                result.errors.push({
+                  path: skillDirPath,
+                  error: addResult.error || 'Unknown error',
+                });
+              }
+            }
+          }
+        }
+      } catch (error) {
+        result.errors.push({
+          path: skillsDir,
+          error: `Failed to scan skills: ${error instanceof Error ? error.message : String(error)}`,
         });
       }
     }
@@ -156,20 +355,24 @@ export class CommandLibraryService {
   }
 
   /**
-   * Inject enabled commands into task's .claude/commands/ directory.
+   * Inject enabled commands and skills into task's .claude/ directory.
+   * Commands go to .claude/commands/, skills go to .claude/skills/
    * Throws errors instead of silently failing to ensure PTY startup is aware of issues.
    */
   static async injectCommands(taskId: string, cwd: string): Promise<void> {
-    console.error(`[CommandLibraryService] Injecting commands for task ${taskId} in ${cwd}`);
+    console.error(`[CommandLibraryService] Injecting resources for task ${taskId} in ${cwd}`);
 
     const taskCommands = await this.getTaskCommands(taskId);
-    const enabledCommands = taskCommands.filter((tc) => tc.enabled);
+    const enabledResources = taskCommands.filter((tc) => tc.enabled);
+    const enabledCommands = enabledResources.filter((tc) => tc.command.type === 'command');
+    const enabledSkills = enabledResources.filter((tc) => tc.command.type === 'skill');
 
     console.error(
-      `[CommandLibraryService] Found ${enabledCommands.length} enabled commands out of ${taskCommands.length} total`,
+      `[CommandLibraryService] Found ${enabledCommands.length} commands and ${enabledSkills.length} skills out of ${taskCommands.length} total`,
     );
 
     const commandsDir = path.join(cwd, '.claude', 'commands');
+    const skillsDir = path.join(cwd, '.claude', 'skills');
 
     // Ensure .claude/commands directory exists
     if (!fs.existsSync(commandsDir)) {
@@ -183,16 +386,28 @@ export class CommandLibraryService {
       }
     }
 
-    // Clean up all existing library-managed commands (all .md files in this directory)
-    // This ensures old commands are removed when disabled, even if they don't follow naming conventions
+    // Ensure .claude/skills directory exists
+    if (!fs.existsSync(skillsDir)) {
+      console.error(`[CommandLibraryService] Creating directory: ${skillsDir}`);
+      try {
+        fs.mkdirSync(skillsDir, { recursive: true });
+      } catch (err) {
+        throw new Error(
+          `Failed to create skills directory: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+
+    // Clean up existing library-managed commands
     try {
       const existingFiles = fs.readdirSync(commandsDir);
-      const libraryCommandNames = new Set(taskCommands.map((tc) => tc.command.name));
+      const libraryCommandNames = new Set(
+        taskCommands.filter((tc) => tc.command.type === 'command').map((tc) => tc.command.name),
+      );
 
       for (const file of existingFiles) {
         if (file.endsWith('.md')) {
           const baseName = path.basename(file, '.md');
-          // Only remove files that are known library commands
           if (libraryCommandNames.has(baseName)) {
             const filePath = path.join(commandsDir, file);
             try {
@@ -209,6 +424,33 @@ export class CommandLibraryService {
       );
     }
 
+    // Clean up existing library-managed skills
+    try {
+      const existingDirs = fs.readdirSync(skillsDir);
+      const librarySkillNames = new Set(
+        taskCommands.filter((tc) => tc.command.type === 'skill').map((tc) => tc.command.name),
+      );
+
+      for (const dir of existingDirs) {
+        const skillPath = path.join(skillsDir, dir);
+        const stats = fs.statSync(skillPath);
+        if (stats.isDirectory() && librarySkillNames.has(dir)) {
+          try {
+            fs.rmSync(skillPath, { recursive: true, force: true });
+          } catch (err) {
+            console.error(`[CommandLibraryService] Failed to remove ${skillPath}:`, err);
+          }
+        }
+      }
+    } catch (err) {
+      // Skills directory might not exist yet, that's okay
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw new Error(
+          `Failed to clean up skills directory: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+
     // Copy enabled commands
     const errors: string[] = [];
     for (const { command } of enabledCommands) {
@@ -220,24 +462,87 @@ export class CommandLibraryService {
           continue;
         }
 
-        // Ensure the command name doesn't already include .md extension
         const commandName = command.name.endsWith('.md') ? command.name.slice(0, -3) : command.name;
         const destPath = path.join(commandsDir, `${commandName}.md`);
         fs.copyFileSync(command.filePath, destPath);
       } catch (err) {
-        const errorMsg = `Failed to copy ${command.name}: ${err instanceof Error ? err.message : String(err)}`;
+        const errorMsg = `Failed to copy command ${command.name}: ${err instanceof Error ? err.message : String(err)}`;
+        console.error(`[CommandLibraryService] ${errorMsg}`);
+        errors.push(errorMsg);
+      }
+    }
+
+    // Copy enabled skills (entire directories)
+    for (const { command } of enabledSkills) {
+      try {
+        if (!fs.existsSync(command.filePath)) {
+          const errorMsg = `Source directory not found: ${command.filePath}`;
+          console.error(`[CommandLibraryService] ${errorMsg}`);
+          errors.push(errorMsg);
+          continue;
+        }
+
+        const destPath = path.join(skillsDir, command.name);
+        this.copyDirectory(command.filePath, destPath);
+      } catch (err) {
+        const errorMsg = `Failed to copy skill ${command.name}: ${err instanceof Error ? err.message : String(err)}`;
         console.error(`[CommandLibraryService] ${errorMsg}`);
         errors.push(errorMsg);
       }
     }
 
     if (errors.length > 0) {
-      throw new Error(`Command injection had ${errors.length} error(s): ${errors.join('; ')}`);
+      throw new Error(`Resource injection had ${errors.length} error(s): ${errors.join('; ')}`);
     }
 
     console.error(
-      `[CommandLibraryService] Injected ${enabledCommands.length} commands to ${commandsDir}`,
+      `[CommandLibraryService] Injected ${enabledCommands.length} commands and ${enabledSkills.length} skills`,
     );
+  }
+
+  /**
+   * Recursively copy a directory with safety limits
+   */
+  private static copyDirectory(src: string, dest: string, depth = 0): void {
+    const MAX_DEPTH = 10;
+    if (depth > MAX_DEPTH) {
+      throw new Error(`Directory nesting too deep (max ${MAX_DEPTH} levels)`);
+    }
+
+    // Skip unwanted directories at any level
+    const basename = path.basename(src);
+    const skipDirs = ['.git', 'node_modules', '.DS_Store', '__pycache__', '.venv'];
+    if (skipDirs.includes(basename)) {
+      return;
+    }
+
+    // Create destination directory
+    if (!fs.existsSync(dest)) {
+      fs.mkdirSync(dest, { recursive: true });
+    }
+
+    const entries = fs.readdirSync(src, { withFileTypes: true });
+
+    for (const entry of entries) {
+      // Skip hidden files and unwanted patterns at root level only
+      if (depth === 0 && entry.name.startsWith('.') && entry.name !== '.env') {
+        continue;
+      }
+
+      const srcPath = path.join(src, entry.name);
+      const destPath = path.join(dest, entry.name);
+
+      // Skip symlinks to prevent loops
+      if (entry.isSymbolicLink()) {
+        continue;
+      }
+
+      if (entry.isDirectory()) {
+        this.copyDirectory(srcPath, destPath, depth + 1);
+      } else {
+        fs.copyFileSync(srcPath, destPath);
+      }
+    }
   }
 
   /**
