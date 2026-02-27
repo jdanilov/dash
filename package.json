@@ -25,7 +25,8 @@
       "output": "release"
     },
     "files": [
-      "dist/**/*"
+      "dist/**/*",
+      "scripts/**/*"
     ],
     "asarUnpack": [
       "node_modules/better-sqlite3/**",
