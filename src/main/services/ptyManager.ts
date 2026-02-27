@@ -672,6 +672,7 @@ export async function startPty(options: {
     args = ['-il'];
   }
 
+  console.log('[ptyManager] Spawning shell:', { shell, args, cwd: options.cwd });
   const proc = pty.spawn(shell, args, {
     name: 'xterm-256color',
     cols: options.cols,
