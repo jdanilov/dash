@@ -549,15 +549,16 @@ export class TerminalSessionManager {
       this.fitAddon.fit();
       const dims = this.fitAddon.proposeDimensions();
       if (dims && dims.cols > 0 && dims.rows > 0) {
-        // Skip redundant PTY resizes to avoid SIGWINCH prompt redraw
-        if (dims.cols === this.lastPtyCols && dims.rows === this.lastPtyRows) return;
-        this.lastPtyCols = dims.cols;
-        this.lastPtyRows = dims.rows;
-        window.electronAPI.ptyResize({
-          id: this.id,
-          cols: dims.cols,
-          rows: dims.rows,
-        });
+        // Only resize PTY if dimensions actually changed
+        if (dims.cols !== this.lastPtyCols || dims.rows !== this.lastPtyRows) {
+          this.lastPtyCols = dims.cols;
+          this.lastPtyRows = dims.rows;
+          window.electronAPI.ptyResize({
+            id: this.id,
+            cols: dims.cols,
+            rows: dims.rows,
+          });
+        }
       }
 
       // If user was at bottom, keep them at bottom after resize
