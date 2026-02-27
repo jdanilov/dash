@@ -568,6 +568,7 @@ export class TerminalSessionManager {
       autoApprove: this.autoApprove,
       resume,
       isDark: this.isDark,
+      taskId: this.id, // Pass taskId for command injection
     });
 
     if (resp.success) {

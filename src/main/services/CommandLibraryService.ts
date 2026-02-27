@@ -151,13 +151,20 @@ export class CommandLibraryService {
    * Inject enabled commands into task's .claude/commands/ directory
    */
   static async injectCommands(taskId: string, cwd: string): Promise<void> {
+    console.error(`[CommandLibraryService] Injecting commands for task ${taskId} in ${cwd}`);
+
     const taskCommands = await this.getTaskCommands(taskId);
     const enabledCommands = taskCommands.filter((tc) => tc.enabled);
+
+    console.error(
+      `[CommandLibraryService] Found ${enabledCommands.length} enabled commands out of ${taskCommands.length} total`,
+    );
 
     const commandsDir = path.join(cwd, '.claude', 'commands');
 
     // Ensure .claude/commands directory exists
     if (!fs.existsSync(commandsDir)) {
+      console.error(`[CommandLibraryService] Creating directory: ${commandsDir}`);
       fs.mkdirSync(commandsDir, { recursive: true });
     }
 
