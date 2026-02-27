@@ -33,6 +33,9 @@ export function TaskModal({ projectPath, onClose, onCreate }: TaskModalProps) {
   const [branchSearch, setBranchSearch] = useState('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
+  // Permission mode dropdown state
+  const [permissionDropdownOpen, setPermissionDropdownOpen] = useState(false);
+
   // GitHub issue picker state
   const [ghAvailable, setGhAvailable] = useState(false);
   const [issueQuery, setIssueQuery] = useState('');
@@ -43,6 +46,7 @@ export function TaskModal({ projectPath, onClose, onCreate }: TaskModalProps) {
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const permissionDropdownRef = useRef<HTMLDivElement>(null);
   const issueDropdownRef = useRef<HTMLDivElement>(null);
   const issueSearchInputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -68,6 +72,12 @@ export function TaskModal({ projectPath, onClose, onCreate }: TaskModalProps) {
     function handleClickOutside(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setDropdownOpen(false);
+      }
+      if (
+        permissionDropdownRef.current &&
+        !permissionDropdownRef.current.contains(e.target as Node)
+      ) {
+        setPermissionDropdownOpen(false);
       }
       if (issueDropdownRef.current && !issueDropdownRef.current.contains(e.target as Node)) {
         setIssueDropdownOpen(false);
@@ -475,31 +485,93 @@ export function TaskModal({ projectPath, onClose, onCreate }: TaskModalProps) {
           )}
 
           {/* Permission mode selector */}
-          <div className="mb-6">
-            <label className="block mb-2">
-              <div className="flex items-center gap-2 mb-2">
+          <div className="mb-6" ref={permissionDropdownRef}>
+            <label className="block text-[12px] font-medium text-muted-foreground/70 mb-2">
+              <div className="flex items-center gap-2">
                 <Zap size={13} className="text-muted-foreground/40" strokeWidth={1.8} />
-                <span className="text-[12px] font-medium text-muted-foreground/70">Permission Mode</span>
+                Permission Mode
               </div>
-              <select
-                value={permissionMode}
-                onChange={(e) => {
-                  const mode = e.target.value as PermissionMode;
-                  setPermissionMode(mode);
-                  localStorage.setItem('permissionMode', mode);
-                }}
-                className="w-full px-3.5 py-2.5 rounded-lg bg-background border border-input/60 text-foreground text-[13px] focus:outline-none focus:ring-2 focus:ring-ring/30 focus:border-ring/50 transition-all duration-150"
-              >
-                <option value="paranoid">Paranoid</option>
-                <option value="safe">Safe auto-approve</option>
-                <option value="yolo">Yolo</option>
-              </select>
             </label>
-            <p className="text-[11px] text-muted-foreground/40 mt-1.5">
-              {permissionMode === 'paranoid' && 'Claude will request approval for all operations'}
-              {permissionMode === 'safe' && 'Block only dangerous operations'}
-              {permissionMode === 'yolo' && 'Skip all permission prompts (dangerous)'}
-            </p>
+
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setPermissionDropdownOpen(!permissionDropdownOpen)}
+                className="w-full flex items-center gap-2 px-3.5 py-2.5 rounded-lg bg-background border border-input/60 text-foreground text-[13px] focus:outline-none focus:ring-2 focus:ring-ring/30 focus:border-ring/50 transition-all duration-150 hover:border-input"
+              >
+                <Zap size={12} className="text-muted-foreground/40 shrink-0" strokeWidth={1.8} />
+                <span className="flex-1 text-left">
+                  {permissionMode === 'paranoid' && 'Paranoid'}
+                  {permissionMode === 'safe' && 'Safe auto-approve'}
+                  {permissionMode === 'yolo' && 'Yolo'}
+                </span>
+                <ChevronDown
+                  size={13}
+                  className={`text-muted-foreground/40 shrink-0 transition-transform duration-150 ${permissionDropdownOpen ? 'rotate-180' : ''}`}
+                />
+              </button>
+
+              {permissionDropdownOpen && (
+                <div className="absolute z-50 mt-1 w-full bg-card border border-border/60 rounded-lg shadow-xl shadow-black/30 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPermissionMode('paranoid');
+                      localStorage.setItem('permissionMode', 'paranoid');
+                      setPermissionDropdownOpen(false);
+                    }}
+                    className={`w-full flex items-start gap-2 px-3 py-2.5 text-left hover:bg-accent/60 transition-colors duration-100 ${
+                      permissionMode === 'paranoid' ? 'bg-accent/40' : ''
+                    }`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[12px] text-foreground/80 font-medium">Paranoid</div>
+                      <div className="text-[11px] text-muted-foreground/50 mt-0.5">
+                        Claude will request approval for all operations
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPermissionMode('safe');
+                      localStorage.setItem('permissionMode', 'safe');
+                      setPermissionDropdownOpen(false);
+                    }}
+                    className={`w-full flex items-start gap-2 px-3 py-2.5 text-left hover:bg-accent/60 transition-colors duration-100 ${
+                      permissionMode === 'safe' ? 'bg-accent/40' : ''
+                    }`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[12px] text-foreground/80 font-medium">
+                        Safe auto-approve
+                      </div>
+                      <div className="text-[11px] text-muted-foreground/50 mt-0.5">
+                        Block only dangerous operations
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPermissionMode('yolo');
+                      localStorage.setItem('permissionMode', 'yolo');
+                      setPermissionDropdownOpen(false);
+                    }}
+                    className={`w-full flex items-start gap-2 px-3 py-2.5 text-left hover:bg-accent/60 transition-colors duration-100 ${
+                      permissionMode === 'yolo' ? 'bg-accent/40' : ''
+                    }`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[12px] text-foreground/80 font-medium">Yolo</div>
+                      <div className="text-[11px] text-muted-foreground/50 mt-0.5">
+                        Skip all permission prompts (dangerous)
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Actions */}
