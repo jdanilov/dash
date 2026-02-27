@@ -658,7 +658,7 @@ export async function startPty(options: {
       const bashrcPath = path.join(configDir, 'bashrc');
       // Verify bashrc file exists before using it
       if (fs.existsSync(bashrcPath)) {
-        args = ['-i', '--rcfile', bashrcPath]; // Interactive with custom rcfile
+        args = ['--rcfile', bashrcPath, '-i']; // Must use --rcfile before -i flag
       } else {
         console.error('[ptyManager] bashrc not found at:', bashrcPath);
         args = ['-il']; // Fallback to login + interactive
