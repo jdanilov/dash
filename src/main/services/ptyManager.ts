@@ -254,8 +254,9 @@ function writeHookSettings(cwd: string, ptyId: string, permissionMode?: string):
     if (fs.existsSync(safetyHookPath)) {
       try {
         fs.accessSync(safetyHookPath, fs.constants.R_OK | fs.constants.X_OK);
-        hookSettings.PreExecuteBash = [
+        hookSettings.PreToolUse = [
           {
+            matcher: 'Bash',
             hooks: [
               {
                 type: 'command',
