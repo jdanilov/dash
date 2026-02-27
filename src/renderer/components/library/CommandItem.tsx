@@ -64,7 +64,7 @@ export function CommandItem({
     onDelete();
   };
 
-  const Icon = isCommand ? Terminal : Zap;
+  const Icon = isCommand ? Zap : Terminal;
 
   return (
     <div
@@ -74,7 +74,7 @@ export function CommandItem({
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >
-      {/* Toggle icon (Terminal for commands, Zap for skills) */}
+      {/* Toggle icon (Zap for commands, Terminal for skills) */}
       <button
         onClick={handleToggle}
         className="flex-shrink-0"

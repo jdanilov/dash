@@ -62,9 +62,10 @@ class SessionRegistryImpl {
 
   async restart(id: string): Promise<void> {
     const session = this.sessions.get(id);
-    if (session) {
-      await session.restart();
+    if (!session) {
+      throw new Error(`Session not found: ${id}`);
     }
+    await session.restart();
   }
 
   setAllThemes(isDark: boolean): void {
