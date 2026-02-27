@@ -171,7 +171,9 @@ export function LeftSidebar({
     <div className="h-full flex flex-col" style={{ background: 'hsl(var(--surface-1))' }}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 pt-3 pb-1">
-        <span className="text-sm font-medium text-muted-foreground/50 select-none">Projects</span>
+        <span className="text-[11px] font-semibold uppercase text-foreground/80 tracking-[0.08em] select-none">
+          Projects
+        </span>
         <div className="flex items-center gap-1">
           <IconButton onClick={onOpenFolder} title="Add project" className="titlebar-no-drag">
             <FolderOpen size={15} strokeWidth={1.8} />

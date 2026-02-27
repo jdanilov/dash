@@ -116,8 +116,10 @@ class ActivityMonitorImpl {
         continue;
       }
 
-      // Direct-spawn PTYs are driven by Claude Code hooks, not polling
-      if (activity.isDirectSpawn) continue;
+      // Direct-spawn PTYs are driven by Claude Code hooks, not polling.
+      // Exception: 'waiting' state needs polling to detect resumed work after
+      // the user responds to a permission prompt (no hook fires for that).
+      if (activity.isDirectSpawn && activity.state !== 'waiting') continue;
 
       const isWorking = this.hasActiveWork(activity.pid, activity.isDirectSpawn, childMap);
       const newState: ActivityState = isWorking ? 'busy' : 'idle';
