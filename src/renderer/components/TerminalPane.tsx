@@ -1,7 +1,8 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { ArrowDown } from 'lucide-react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
+import { ArrowDown, ChevronUp, ChevronDown, X } from 'lucide-react';
 import { sessionRegistry } from '../terminal/SessionRegistry';
 import type { PermissionMode } from '../../shared/types';
+import { loadKeybindings, matchesBinding } from '../keybindings';
 
 const OVERLAY_MIN_MS = 2000;
 const OVERLAY_FADE_MS = 300;
@@ -14,10 +15,13 @@ interface TerminalPaneProps {
 
 export function TerminalPane({ id, cwd, permissionMode }: TerminalPaneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [showOverlay, setShowOverlay] = useState(false);
   const [overlayVisible, setOverlayVisible] = useState(false);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const hideOverlay = useCallback(() => {
     // Start fade-out
@@ -26,7 +30,60 @@ export function TerminalPane({ id, cwd, permissionMode }: TerminalPaneProps) {
     setTimeout(() => setShowOverlay(false), OVERLAY_FADE_MS);
   }, []);
 
+  const closeSearch = useCallback(() => {
+    setShowSearch(false);
+    setSearchQuery('');
+    const session = sessionRegistry.get(id);
+    session?.clearSearch();
+    session?.focus();
+  }, [id]);
+
+  const handleSearchKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeSearch();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const session = sessionRegistry.get(id);
+        if (session) {
+          if (e.shiftKey) {
+            session.searchPrev();
+          } else {
+            session.searchNext();
+          }
+        }
+      }
+    },
+    [id, closeSearch],
+  );
+
+  const handleSearchChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const query = e.target.value;
+      setSearchQuery(query);
+      const session = sessionRegistry.get(id);
+      if (session && query) {
+        session.search(query);
+      } else if (session && !query) {
+        session.clearSearch();
+      }
+    },
+    [id],
+  );
+
+  const handleSearchPrev = useCallback(() => {
+    const session = sessionRegistry.get(id);
+    session?.searchPrev();
+  }, [id]);
+
+  const handleSearchNext = useCallback(() => {
+    const session = sessionRegistry.get(id);
+    session?.searchNext();
+  }, [id]);
+
   const overlayStartRef = useRef(0);
+  const keybindings = useMemo(() => loadKeybindings(), []);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -70,6 +127,24 @@ export function TerminalPane({ id, cwd, permissionMode }: TerminalPaneProps) {
     };
   }, [id, cwd, permissionMode, hideOverlay]);
 
+  // Keyboard handler for Cmd+F
+  useEffect(() => {
+    const searchBinding = keybindings.searchTerminal;
+    if (!searchBinding) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (matchesBinding(e, searchBinding)) {
+        e.preventDefault();
+        setShowSearch(true);
+        // Focus input after render
+        setTimeout(() => searchInputRef.current?.focus(), 0);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [keybindings]);
+
   return (
     <div
       className={`w-full h-full relative transition-all duration-150 ${
@@ -95,6 +170,40 @@ export function TerminalPane({ id, cwd, permissionMode }: TerminalPaneProps) {
       }}
     >
       <div ref={containerRef} className="terminal-container w-full h-full" />
+      {showSearch && (
+        <div className="absolute top-2 right-2 z-20 flex items-center gap-1 px-2 py-1.5 rounded-md bg-surface-1/95 backdrop-blur-sm border border-border shadow-lg">
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={handleSearchChange}
+            onKeyDown={handleSearchKeyDown}
+            placeholder="Search..."
+            className="w-48 px-2 py-1 text-[13px] bg-surface-0 border border-border rounded text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+          <button
+            onClick={handleSearchPrev}
+            className="p-1 rounded hover:bg-surface-2 text-muted-foreground hover:text-foreground transition-colors"
+            title="Previous match (Shift+Enter)"
+          >
+            <ChevronUp size={14} strokeWidth={1.8} />
+          </button>
+          <button
+            onClick={handleSearchNext}
+            className="p-1 rounded hover:bg-surface-2 text-muted-foreground hover:text-foreground transition-colors"
+            title="Next match (Enter)"
+          >
+            <ChevronDown size={14} strokeWidth={1.8} />
+          </button>
+          <button
+            onClick={closeSearch}
+            className="p-1 rounded hover:bg-surface-2 text-muted-foreground hover:text-foreground transition-colors"
+            title="Close (Escape)"
+          >
+            <X size={14} strokeWidth={1.8} />
+          </button>
+        </div>
+      )}
       {showOverlay && (
         <div
           className="absolute inset-0 z-10 pointer-events-none dark:bg-[#1f1f1f] bg-[#fafafa] flex flex-col items-center justify-center gap-4"
@@ -119,23 +228,8 @@ export function TerminalPane({ id, cwd, permissionMode }: TerminalPaneProps) {
               </linearGradient>
             </defs>
             <rect width="512" height="512" rx="108" fill="url(#restart-bg)" />
-            <rect
-              x="136"
-              y="240"
-              width="240"
-              height="36"
-              rx="18"
-              fill="url(#restart-dash)"
-            />
-            <rect
-              x="396"
-              y="232"
-              width="4"
-              height="52"
-              rx="2"
-              fill="#00ff88"
-              opacity="0.7"
-            />
+            <rect x="136" y="240" width="240" height="36" rx="18" fill="url(#restart-dash)" />
+            <rect x="396" y="232" width="4" height="52" rx="2" fill="#00ff88" opacity="0.7" />
           </svg>
           <span className="text-[13px] dark:text-neutral-400 text-neutral-500 font-medium">
             Resuming your session...
