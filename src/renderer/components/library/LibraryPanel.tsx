@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Library } from 'lucide-react';
 import { CommandItem } from './CommandItem';
 import type { LibraryCommand } from '@shared/types';
 
@@ -196,9 +196,17 @@ export function LibraryPanel({ currentTaskId, taskPath }: LibraryPanelProps) {
 
   if (!currentTaskId) {
     return (
-      <div className="flex h-full flex-col border-l border-border bg-background">
-        <div className="flex items-center justify-between border-b border-border px-3 py-2">
-          <h3 className="text-sm font-medium text-foreground">Library</h3>
+      <div
+        className="h-full flex flex-col overflow-hidden"
+        style={{ background: 'hsl(var(--surface-1))' }}
+      >
+        <div className="flex items-center justify-between px-3 h-10 flex-shrink-0 border-b border-border/60">
+          <div className="flex items-center gap-2">
+            <Library size={11} strokeWidth={2} className="text-muted-foreground/60" />
+            <span className="text-[11px] font-semibold uppercase text-foreground/80 tracking-[0.08em]">
+              Library
+            </span>
+          </div>
         </div>
         <div className="flex flex-1 items-center justify-center p-4 text-center">
           <p className="text-sm text-muted-foreground">Select a task to manage commands</p>
@@ -208,23 +216,36 @@ export function LibraryPanel({ currentTaskId, taskPath }: LibraryPanelProps) {
   }
 
   return (
-    <div className="flex h-full flex-col border-l border-border bg-background">
+    <div
+      className="h-full flex flex-col overflow-hidden"
+      style={{ background: 'hsl(var(--surface-1))' }}
+    >
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-border px-3 py-2">
-        <h3 className="text-sm font-medium text-foreground">Library</h3>
+      <div className="flex items-center justify-between px-3 h-10 flex-shrink-0 border-b border-border/60">
+        <div className="flex items-center gap-2">
+          <Library size={11} strokeWidth={2} className="text-muted-foreground/60" />
+          <span className="text-[11px] font-semibold uppercase text-foreground/80 tracking-[0.08em]">
+            Library
+          </span>
+          {commands.length > 0 && (
+            <span className="min-w-[18px] h-[16px] flex items-center justify-center rounded-full bg-primary/15 text-[10px] font-bold text-primary tabular-nums px-1">
+              {commands.length}
+            </span>
+          )}
+        </div>
         <button
           onClick={handleAddCommands}
           disabled={loading}
-          className="rounded p-1 text-foreground transition-colors hover:bg-surface-1 disabled:opacity-50"
+          className="p-[3px] rounded hover:bg-accent text-muted-foreground/40 hover:text-foreground transition-colors disabled:opacity-50"
           title="Add commands"
         >
-          <Plus size={14} strokeWidth={1.8} />
+          <Plus size={11} strokeWidth={2} />
         </button>
       </div>
 
       {/* Restart alert */}
       {needsRestart && (
-        <div className="border-b border-border bg-surface-1 px-3 py-2">
+        <div className="border-b border-border/60 bg-surface-2 px-3 py-2">
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs text-muted-foreground">Commands changed</p>
             <button

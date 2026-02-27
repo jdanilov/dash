@@ -48,16 +48,8 @@ export class CommandLibraryService {
           continue;
         }
 
-        // Extract command name from filename (e.g., "-commit.md" -> "-commit")
+        // Extract command name from filename (e.g., "commit.md" -> "commit")
         const fileName = path.basename(filePath, '.md');
-        if (!fileName.startsWith('-')) {
-          result.errors.push({
-            path: filePath,
-            error: 'Command files must start with "-" (e.g., -commit.md)',
-          });
-          continue;
-        }
-
         const displayName = `/${fileName}`;
         const absolutePath = path.resolve(filePath);
 
