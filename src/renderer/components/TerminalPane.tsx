@@ -50,9 +50,21 @@ export function TerminalPane({ id, cwd, autoApprove }: TerminalPaneProps) {
     session.onScrollStateChange(setIsAtBottom);
 
     // Now attach — the async work will call onRestarting/onReady as needed
-    session.attach(container);
+    // After attach completes, scroll to bottom so user sees latest output
+    let cancelled = false;
+    session.attach(container).then(() => {
+      if (!cancelled) {
+        // Small delay to ensure terminal has rendered before scrolling
+        requestAnimationFrame(() => {
+          if (!cancelled) {
+            session.scrollToBottom();
+          }
+        });
+      }
+    });
 
     return () => {
+      cancelled = true;
       sessionRegistry.detach(id);
     };
   }, [id, cwd, autoApprove, hideOverlay]);
