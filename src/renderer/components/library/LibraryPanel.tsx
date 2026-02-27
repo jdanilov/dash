@@ -93,6 +93,8 @@ export function LibraryPanel({ currentTaskId, taskPath }: LibraryPanelProps) {
         if (added > 0 || updated > 0) {
           await loadCommands();
           await loadTaskCommands();
+          // Mark needs restart since we added/updated commands
+          setNeedsRestart(true);
           // TODO: Show toast with success message
         }
       }
@@ -197,7 +199,7 @@ export function LibraryPanel({ currentTaskId, taskPath }: LibraryPanelProps) {
   if (!currentTaskId) {
     return (
       <div
-        className="h-full flex flex-col overflow-hidden"
+        className="h-full flex flex-col overflow-hidden border-t border-border/60"
         style={{ background: 'hsl(var(--surface-1))' }}
       >
         <div className="flex items-center justify-between px-3 h-10 flex-shrink-0 border-b border-border/60">
@@ -217,7 +219,7 @@ export function LibraryPanel({ currentTaskId, taskPath }: LibraryPanelProps) {
 
   return (
     <div
-      className="h-full flex flex-col overflow-hidden"
+      className="h-full flex flex-col overflow-hidden border-t border-border/60"
       style={{ background: 'hsl(var(--surface-1))' }}
     >
       {/* Header */}
@@ -245,14 +247,14 @@ export function LibraryPanel({ currentTaskId, taskPath }: LibraryPanelProps) {
 
       {/* Restart alert */}
       {needsRestart && (
-        <div className="border-b border-border/60 bg-surface-2 px-3 py-2">
+        <div className="border-b border-border/60 bg-surface-0 px-3 py-2">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs text-muted-foreground">Commands changed</p>
+            <p className="text-xs text-muted-foreground">Resources changed</p>
             <button
               onClick={handleRestart}
-              className="rounded bg-primary px-2 py-1 text-xs font-medium text-white hover:bg-primary/90"
+              className="rounded bg-surface-2 px-2 py-1 text-xs font-medium text-foreground hover:bg-surface-3 transition-colors"
             >
-              Restart Claude
+              Restart
             </button>
           </div>
         </div>
@@ -262,17 +264,13 @@ export function LibraryPanel({ currentTaskId, taskPath }: LibraryPanelProps) {
       <div className="flex-1 overflow-y-auto">
         {commands.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 p-6 text-center">
-            <p className="text-sm text-muted-foreground">No commands yet</p>
-            <button
-              onClick={handleAddCommands}
-              className="text-xs text-primary hover:underline"
-              disabled={loading}
-            >
-              Add your first command
-            </button>
+            <div className="w-8 h-8 rounded-xl bg-accent/40 flex items-center justify-center">
+              <Library size={14} className="text-foreground/50" strokeWidth={1.5} />
+            </div>
+            <p className="text-[11px] text-foreground/60">No resources</p>
           </div>
         ) : (
-          <div className="space-y-px">
+          <div className="px-2 pt-1">
             {commands.map((command) => (
               <CommandItem
                 key={command.id}

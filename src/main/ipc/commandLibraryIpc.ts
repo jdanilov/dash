@@ -1,5 +1,40 @@
-import { ipcMain, dialog, shell } from 'electron';
+import { ipcMain, dialog } from 'electron';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+import { existsSync } from 'fs';
 import { commandLibraryService } from '../services/CommandLibraryService';
+
+const execFileAsync = promisify(execFile);
+
+let cachedEditor: string | null = null;
+
+async function detectEditor(): Promise<string> {
+  if (cachedEditor) return cachedEditor;
+
+  // Check environment variables first
+  for (const envVar of ['VISUAL', 'EDITOR']) {
+    const val = process.env[envVar];
+    if (val) {
+      cachedEditor = val;
+      return val;
+    }
+  }
+
+  // Probe for known editors
+  for (const editor of ['cursor', 'code', 'zed']) {
+    try {
+      await execFileAsync('which', [editor]);
+      cachedEditor = editor;
+      return editor;
+    } catch {
+      // Not found, try next
+    }
+  }
+
+  // Fallback to macOS open -t (text editor)
+  cachedEditor = 'open';
+  return 'open';
+}
 
 export function registerCommandLibraryIpc(): void {
   // Add commands from file picker
@@ -102,10 +137,26 @@ export function registerCommandLibraryIpc(): void {
   // Open command file in external editor
   ipcMain.handle('commandLibrary:openInEditor', async (_event, filePath: string) => {
     try {
-      const error = await shell.openPath(filePath);
-      if (error) {
-        return { success: false, error };
+      if (!existsSync(filePath)) {
+        return { success: false, error: `File not found: ${filePath}` };
       }
+
+      const editor = await detectEditor();
+
+      // Build args for known editors
+      const gotoEditors = ['code', 'cursor', 'zed'];
+      const isGotoEditor = gotoEditors.some((e) => editor === e || editor.endsWith(`/${e}`));
+
+      if (isGotoEditor) {
+        await execFileAsync(editor, ['-g', filePath]);
+      } else if (editor === 'open') {
+        // Use -t flag to open in text editor, not default app
+        await execFileAsync('open', ['-t', filePath]);
+      } else {
+        // Generic editor (vim, nano, etc.)
+        await execFileAsync(editor, [filePath]);
+      }
+
       return { success: true };
     } catch (error) {
       return { success: false, error: String(error) };

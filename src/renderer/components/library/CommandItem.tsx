@@ -44,7 +44,7 @@ export function CommandItem({
 
   return (
     <div
-      className="group relative flex items-center gap-2 px-3 py-2 hover:bg-surface-1"
+      className="group relative flex items-center gap-2 px-3.5 py-[6px] rounded-md text-[13px] hover:bg-accent/50 cursor-pointer transition-all duration-150"
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >
@@ -55,8 +55,8 @@ export function CommandItem({
         title={enabled ? 'Disable for this task' : 'Enable for this task'}
       >
         <div
-          className={`h-3 w-3 rounded-full border-2 transition-colors ${
-            enabled ? 'border-primary bg-primary' : 'border-muted-foreground bg-transparent'
+          className={`w-[6px] h-[6px] rounded-full transition-colors ${
+            enabled ? 'bg-emerald-400' : 'bg-muted-foreground/40'
           }`}
         />
       </button>
@@ -64,41 +64,47 @@ export function CommandItem({
       {/* Command name */}
       <button
         onClick={handleClick}
-        className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left text-sm text-foreground"
+        className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left text-muted-foreground hover:text-foreground transition-colors"
         title={command.displayName}
       >
         {command.displayName}
       </button>
 
       {/* Actions */}
-      <div className={`flex items-center gap-1 ${showActions ? 'opacity-100' : 'opacity-0'}`}>
+      <div
+        className={`flex items-center gap-0.5 flex-shrink-0 transition-opacity ${showActions ? 'opacity-100' : 'opacity-0'}`}
+      >
         {/* Default star */}
         <button
           onClick={handleToggleDefault}
-          className={`rounded p-1 transition-colors hover:bg-surface-2 ${
+          className={`rounded p-0.5 transition-colors hover:bg-surface-2 ${
             command.enabledByDefault ? 'text-amber-500' : 'text-muted-foreground'
           }`}
           title={command.enabledByDefault ? 'Enabled by default' : 'Disabled by default'}
         >
-          <Star size={14} fill={command.enabledByDefault ? 'currentColor' : 'none'} />
+          <Star
+            size={12}
+            strokeWidth={1.8}
+            fill={command.enabledByDefault ? 'currentColor' : 'none'}
+          />
         </button>
 
         {/* Edit */}
         <button
           onClick={handleEdit}
-          className="rounded p-1 text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground"
+          className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground"
           title="Open in editor"
         >
-          <Pencil size={14} />
+          <Pencil size={12} strokeWidth={1.8} />
         </button>
 
         {/* Delete */}
         <button
           onClick={handleDelete}
-          className="rounded p-1 text-muted-foreground transition-colors hover:bg-surface-2 hover:text-destructive"
+          className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-surface-2 hover:text-destructive"
           title="Delete command"
         >
-          <Trash2 size={14} />
+          <Trash2 size={12} strokeWidth={1.8} />
         </button>
       </div>
     </div>
