@@ -30,6 +30,13 @@ export function createWindow(): BrowserWindow {
     return { action: 'deny' };
   });
 
+  // Filter out noisy console messages from DevTools
+  mainWindow.webContents.on('console-message', (_event, _level, message) => {
+    if (message.includes('Autofill.enable')) {
+      return;
+    }
+  });
+
   if (isDev) {
     mainWindow.loadURL('http://localhost:3000');
     mainWindow.webContents.openDevTools({ mode: 'detach' });

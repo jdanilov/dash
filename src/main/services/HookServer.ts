@@ -75,7 +75,6 @@ class HookServerImpl {
 
         if (req.method === 'GET' && ptyId) {
           if (url.pathname === '/hook/stop') {
-            console.error(`[HookServer] Stop hook fired for ptyId=${ptyId}`);
             activityMonitor.setIdle(ptyId);
             this.showDesktopNotification(ptyId);
             res.writeHead(200);
@@ -83,7 +82,6 @@ class HookServerImpl {
             return;
           }
           if (url.pathname === '/hook/busy') {
-            console.error(`[HookServer] Busy hook fired for ptyId=${ptyId}`);
             activityMonitor.setBusy(ptyId);
             res.writeHead(200);
             res.end('ok');
@@ -106,9 +104,6 @@ class HookServerImpl {
               const payload = JSON.parse(body);
               const notificationType: string = payload.notification_type;
               const message: string | undefined = payload.message;
-              console.error(
-                `[HookServer] Notification hook fired for ptyId=${ptyId} type=${notificationType}`,
-              );
 
               if (notificationType === 'permission_prompt') {
                 activityMonitor.setWaitingForPermission(ptyId);
