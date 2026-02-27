@@ -295,9 +295,6 @@ function writeHookSettings(cwd: string, ptyId: string, permissionMode?: string):
     merged.attribution = { commit: effectiveAttribution };
 
     fs.writeFileSync(settingsPath, JSON.stringify(merged, null, 2) + '\n');
-    console.error(
-      `[writeHookSettings] Wrote ${settingsPath} (attribution: ${commitAttributionSetting === undefined ? 'default' : commitAttributionSetting || 'none'})`,
-    );
   } catch (err) {
     console.error('[writeHookSettings] Failed:', err);
   }
@@ -672,7 +669,6 @@ export async function startPty(options: {
     args = ['-il'];
   }
 
-  console.log('[ptyManager] Spawning shell:', { shell, args, cwd: options.cwd });
   const proc = pty.spawn(shell, args, {
     name: 'xterm-256color',
     cols: options.cols,

@@ -453,16 +453,10 @@ export class CommandLibraryService {
    * Throws errors instead of silently failing to ensure PTY startup is aware of issues.
    */
   static async injectCommands(taskId: string, cwd: string): Promise<void> {
-    console.error(`[CommandLibraryService] Injecting resources for task ${taskId} in ${cwd}`);
-
     const taskCommands = await this.getTaskCommands(taskId);
     const enabledResources = taskCommands.filter((tc) => tc.enabled);
     const enabledCommands = enabledResources.filter((tc) => tc.command.type === 'command');
     const enabledSkills = enabledResources.filter((tc) => tc.command.type === 'skill');
-
-    console.error(
-      `[CommandLibraryService] Found ${enabledCommands.length} commands and ${enabledSkills.length} skills out of ${taskCommands.length} total`,
-    );
 
     const commandsDir = path.join(cwd, '.claude', 'commands');
     const skillsDir = path.join(cwd, '.claude', 'skills');
@@ -587,10 +581,6 @@ export class CommandLibraryService {
     if (errors.length > 0) {
       throw new Error(`Resource injection had ${errors.length} error(s): ${errors.join('; ')}`);
     }
-
-    console.error(
-      `[CommandLibraryService] Injected ${enabledCommands.length} commands and ${enabledSkills.length} skills`,
-    );
   }
 
   /**
@@ -647,8 +637,6 @@ export class CommandLibraryService {
     for (const command of commands) {
       this.watchFile(command.filePath);
     }
-
-    console.error(`[CommandLibraryService] Watching ${commands.length} command files`);
   }
 
   /**
