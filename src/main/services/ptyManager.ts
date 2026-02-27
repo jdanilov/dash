@@ -566,7 +566,7 @@ __dash_prompt_command() {
 
   # Prompt symbol: green $ if last command succeeded, red $ if failed
   local prompt_color
-  if [[ \$exit_code -eq 0 ]]; then
+  if [[ $exit_code -eq 0 ]]; then
     prompt_color="\\[\\e[32m\\]"
   else
     prompt_color="\\[\\e[31m\\]"
@@ -596,15 +596,19 @@ function ensureShellConfig(): string {
     '.zlogin': SHELL_ZLOGIN,
     'prompt.zsh': SHELL_PROMPT,
     // Bash config
-    'bashrc': SHELL_BASHRC,
+    bashrc: SHELL_BASHRC,
     'prompt.bash': SHELL_BASH_PROMPT,
   };
 
   for (const [name, content] of Object.entries(files)) {
     const filePath = path.join(dir, name);
-    const existing = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf-8') : null;
-    if (existing !== content) {
-      fs.writeFileSync(filePath, content);
+    try {
+      const existing = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf-8') : null;
+      if (existing !== content) {
+        fs.writeFileSync(filePath, content);
+      }
+    } catch (err) {
+      console.error(`[ensureShellConfig] Failed to write ${name}:`, err);
     }
   }
 
@@ -649,9 +653,20 @@ export async function startPty(options: {
     args = ['-il']; // Login + interactive
   } else if (shell.endsWith('/bash') || shell === 'bash') {
     // Bash: use custom rcfile that sources both profile and bashrc
-    const configDir = ensureShellConfig();
-    const bashrcPath = path.join(configDir, 'bashrc');
-    args = ['-i', '--rcfile', bashrcPath]; // Interactive with custom rcfile
+    try {
+      const configDir = ensureShellConfig();
+      const bashrcPath = path.join(configDir, 'bashrc');
+      // Verify bashrc file exists before using it
+      if (fs.existsSync(bashrcPath)) {
+        args = ['-i', '--rcfile', bashrcPath]; // Interactive with custom rcfile
+      } else {
+        console.error('[ptyManager] bashrc not found at:', bashrcPath);
+        args = ['-il']; // Fallback to login + interactive
+      }
+    } catch (err) {
+      console.error('[ptyManager] Failed to setup bash config:', err);
+      args = ['-il']; // Fallback to login + interactive
+    }
   } else {
     // Other shells: use default login + interactive
     args = ['-il'];
