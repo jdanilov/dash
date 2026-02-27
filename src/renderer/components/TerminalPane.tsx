@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { ArrowDown } from 'lucide-react';
 import { sessionRegistry } from '../terminal/SessionRegistry';
-import type { PermissionMode } from '../../shared/types';
+import type { PermissionMode, ClaudeModel } from '../../shared/types';
 
 const OVERLAY_MIN_MS = 2000;
 const OVERLAY_FADE_MS = 300;
@@ -10,9 +10,10 @@ interface TerminalPaneProps {
   id: string;
   cwd: string;
   permissionMode?: PermissionMode;
+  model?: ClaudeModel;
 }
 
-export function TerminalPane({ id, cwd, permissionMode }: TerminalPaneProps) {
+export function TerminalPane({ id, cwd, permissionMode, model }: TerminalPaneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [showOverlay, setShowOverlay] = useState(false);
@@ -34,7 +35,7 @@ export function TerminalPane({ id, cwd, permissionMode }: TerminalPaneProps) {
 
     // Get or create session first so we can register callbacks
     // before the async attach() work detects a restart
-    const session = sessionRegistry.getOrCreate({ id, cwd, permissionMode });
+    const session = sessionRegistry.getOrCreate({ id, cwd, permissionMode, model });
 
     session.onRestarting(() => {
       overlayStartRef.current = Date.now();
@@ -68,7 +69,7 @@ export function TerminalPane({ id, cwd, permissionMode }: TerminalPaneProps) {
       cancelled = true;
       sessionRegistry.detach(id);
     };
-  }, [id, cwd, permissionMode, hideOverlay]);
+  }, [id, cwd, permissionMode, model, hideOverlay]);
 
   return (
     <div
@@ -119,23 +120,8 @@ export function TerminalPane({ id, cwd, permissionMode }: TerminalPaneProps) {
               </linearGradient>
             </defs>
             <rect width="512" height="512" rx="108" fill="url(#restart-bg)" />
-            <rect
-              x="136"
-              y="240"
-              width="240"
-              height="36"
-              rx="18"
-              fill="url(#restart-dash)"
-            />
-            <rect
-              x="396"
-              y="232"
-              width="4"
-              height="52"
-              rx="2"
-              fill="#00ff88"
-              opacity="0.7"
-            />
+            <rect x="136" y="240" width="240" height="36" rx="18" fill="url(#restart-dash)" />
+            <rect x="396" y="232" width="4" height="52" rx="2" fill="#00ff88" opacity="0.7" />
           </svg>
           <span className="text-[13px] dark:text-neutral-400 text-neutral-500 font-medium">
             Resuming your session...

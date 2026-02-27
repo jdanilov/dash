@@ -1,6 +1,17 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, GitBranch, Zap, ChevronDown, Loader2, AlertCircle, Search, Github, Check } from 'lucide-react';
-import type { BranchInfo, GithubIssue, PermissionMode } from '../../shared/types';
+import {
+  X,
+  GitBranch,
+  Zap,
+  ChevronDown,
+  Loader2,
+  AlertCircle,
+  Search,
+  Github,
+  Check,
+  Cpu,
+} from 'lucide-react';
+import type { BranchInfo, GithubIssue, PermissionMode, ClaudeModel } from '../../shared/types';
 
 interface TaskModalProps {
   projectPath: string;
@@ -9,6 +20,7 @@ interface TaskModalProps {
     name: string,
     useWorktree: boolean,
     permissionMode: PermissionMode,
+    model: ClaudeModel,
     baseRef?: string,
     linkedIssues?: GithubIssue[],
   ) => void;
@@ -23,6 +35,13 @@ export function TaskModal({ projectPath, onClose, onCreate }: TaskModalProps) {
       return saved;
     }
     return 'paranoid';
+  });
+  const [model, setModel] = useState<ClaudeModel>(() => {
+    const saved = localStorage.getItem('claudeModel');
+    if (saved === 'opus' || saved === 'sonnet' || saved === 'haiku') {
+      return saved;
+    }
+    return 'opus';
   });
 
   // Branch selector state
@@ -169,6 +188,7 @@ export function TaskModal({ projectPath, onClose, onCreate }: TaskModalProps) {
         name.trim(),
         useWorktree,
         permissionMode,
+        model,
         baseRef,
         selectedIssues.length > 0 ? selectedIssues : undefined,
       );
@@ -294,9 +314,7 @@ export function TaskModal({ projectPath, onClose, onCreate }: TaskModalProps) {
                         setBranchSearch('');
                         setDropdownOpen(true);
                       }}
-                      placeholder={
-                        branchLoading ? 'Fetching branches...' : 'Search branches...'
-                      }
+                      placeholder={branchLoading ? 'Fetching branches...' : 'Search branches...'}
                       disabled={branchLoading}
                       className="flex-1 bg-transparent text-[13px] text-foreground placeholder:text-muted-foreground/30 outline-none disabled:opacity-50"
                     />
@@ -426,9 +444,7 @@ export function TaskModal({ projectPath, onClose, onCreate }: TaskModalProps) {
                         </div>
                       ) : (
                         issueResults.map((issue) => {
-                          const isSelected = selectedIssues.some(
-                            (i) => i.number === issue.number,
-                          );
+                          const isSelected = selectedIssues.some((i) => i.number === issue.number);
                           return (
                             <button
                               key={issue.number}
@@ -448,7 +464,11 @@ export function TaskModal({ projectPath, onClose, onCreate }: TaskModalProps) {
                                 }`}
                               >
                                 {isSelected && (
-                                  <Check size={10} strokeWidth={3} className="text-primary-foreground" />
+                                  <Check
+                                    size={10}
+                                    strokeWidth={3}
+                                    className="text-primary-foreground"
+                                  />
                                 )}
                               </span>
                               <div className="flex-1 min-w-0">
@@ -572,6 +592,34 @@ export function TaskModal({ projectPath, onClose, onCreate }: TaskModalProps) {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Model selector */}
+          <div className="mb-6">
+            <label className="block mb-2">
+              <div className="flex items-center gap-2 mb-2">
+                <Cpu size={13} className="text-muted-foreground/40" strokeWidth={1.8} />
+                <span className="text-[12px] font-medium text-muted-foreground/70">Model</span>
+              </div>
+              <select
+                value={model}
+                onChange={(e) => {
+                  const m = e.target.value as ClaudeModel;
+                  setModel(m);
+                  localStorage.setItem('claudeModel', m);
+                }}
+                className="w-full px-3.5 py-2.5 rounded-lg bg-background border border-input/60 text-foreground text-[13px] focus:outline-none focus:ring-2 focus:ring-ring/30 focus:border-ring/50 transition-all duration-150"
+              >
+                <option value="opus">Opus</option>
+                <option value="sonnet">Sonnet</option>
+                <option value="haiku">Haiku</option>
+              </select>
+            </label>
+            <p className="text-[11px] text-muted-foreground/40 mt-1.5">
+              {model === 'opus' && 'Most capable model (default)'}
+              {model === 'sonnet' && 'Balanced performance and speed'}
+              {model === 'haiku' && 'Fastest, most economical'}
+            </p>
           </div>
 
           {/* Actions */}

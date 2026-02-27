@@ -6,6 +6,14 @@
  */
 export type PermissionMode = 'paranoid' | 'safe' | 'yolo';
 
+/**
+ * Claude model selection for tasks.
+ * - 'opus': Most capable (default)
+ * - 'sonnet': Balanced performance
+ * - 'haiku': Fastest, most economical
+ */
+export type ClaudeModel = 'opus' | 'sonnet' | 'haiku';
+
 export interface Project {
   id: string;
   name: string;
@@ -26,6 +34,7 @@ export interface Task {
   status: string;
   useWorktree: boolean;
   permissionMode: PermissionMode;
+  model: ClaudeModel;
   linkedIssues: number[] | null;
   archivedAt: string | null;
   createdAt: string;

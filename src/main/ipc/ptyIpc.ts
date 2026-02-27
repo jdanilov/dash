@@ -28,6 +28,7 @@ export function registerPtyIpc(): void {
         cols: number;
         rows: number;
         permissionMode?: 'paranoid' | 'safe' | 'yolo';
+        model?: 'opus' | 'sonnet' | 'haiku';
         resume?: boolean;
         isDark?: boolean;
         taskId?: string;

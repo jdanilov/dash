@@ -161,5 +161,12 @@ export function runMigrations(): void {
   );
   rawDb.exec(`CREATE INDEX IF NOT EXISTS idx_task_mcps_task_id ON task_mcps(task_id);`);
 
+  // Migration: Add model column for Claude model selection
+  try {
+    rawDb.exec(`ALTER TABLE tasks ADD COLUMN model TEXT NOT NULL DEFAULT 'opus'`);
+  } catch {
+    /* already exists */
+  }
+
   rawDb.pragma('foreign_keys = ON');
 }

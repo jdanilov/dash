@@ -2,7 +2,7 @@ import { Terminal } from 'xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { SerializeAddon } from '@xterm/addon-serialize';
 import { WebLinksAddon } from '@xterm/addon-web-links';
-import type { TerminalSnapshot, PermissionMode } from '../../shared/types';
+import type { TerminalSnapshot, PermissionMode, ClaudeModel } from '../../shared/types';
 import { FilePathLinkProvider } from './FilePathLinkProvider';
 import { darkTheme, lightTheme, resolveTheme } from './terminalThemes';
 
@@ -25,6 +25,7 @@ export class TerminalSessionManager {
   private disposed = false;
   private opened = false;
   private permissionMode: PermissionMode;
+  private model: ClaudeModel;
   private currentContainer: HTMLElement | null = null;
   private boundBeforeUnload: (() => void) | null = null;
   private attachGeneration = 0;
@@ -48,6 +49,7 @@ export class TerminalSessionManager {
     id: string;
     cwd: string;
     permissionMode?: PermissionMode;
+    model?: ClaudeModel;
     isDark?: boolean;
     shellOnly?: boolean;
     themeId?: string;
@@ -56,6 +58,7 @@ export class TerminalSessionManager {
     this.cwd = opts.cwd;
     this._currentCwd = opts.cwd;
     this.permissionMode = opts.permissionMode ?? 'paranoid';
+    this.model = opts.model ?? 'opus';
     this.isDark = opts.isDark ?? true;
     this.shellOnly = opts.shellOnly ?? false;
     this.themeId = opts.themeId ?? 'default';
@@ -600,6 +603,7 @@ export class TerminalSessionManager {
       cols,
       rows,
       permissionMode: this.permissionMode,
+      model: this.model,
       resume,
       isDark: this.isDark,
       taskId: this.id, // Pass taskId for command injection

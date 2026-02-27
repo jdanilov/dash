@@ -34,6 +34,7 @@ export const tasks = sqliteTable(
       .notNull()
       .default('paranoid')
       .$type<'paranoid' | 'safe' | 'yolo'>(),
+    model: text('model').notNull().default('opus').$type<'opus' | 'sonnet' | 'haiku'>(),
     linkedIssues: text('linked_issues'),
     archivedAt: text('archived_at'),
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),

@@ -20,6 +20,7 @@ import type {
   LibraryMcp,
   TaskMcp,
   PermissionMode,
+  ClaudeModel,
 } from '@shared/types';
 
 export class DatabaseService {
@@ -111,6 +112,7 @@ export class DatabaseService {
         status: data.status ?? 'idle',
         useWorktree: data.useWorktree ?? true,
         permissionMode: data.permissionMode ?? 'paranoid',
+        model: data.model ?? 'opus',
         linkedIssues: linkedIssuesJson,
         createdAt: now,
         updatedAt: now,
@@ -224,6 +226,7 @@ export class DatabaseService {
       status: row.status,
       useWorktree: row.useWorktree ?? true,
       permissionMode: (row.permissionMode as PermissionMode) ?? 'paranoid',
+      model: (row.model as ClaudeModel) ?? 'opus',
       linkedIssues,
       archivedAt: row.archivedAt,
       createdAt: row.createdAt ?? '',

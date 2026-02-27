@@ -27,6 +27,7 @@ import type {
   GithubIssue,
   RemoteControlState,
   PermissionMode,
+  ClaudeModel,
 } from '../shared/types';
 import { loadKeybindings, saveKeybindings, matchesBinding } from './keybindings';
 import type { KeyBindingMap } from './keybindings';
@@ -628,6 +629,7 @@ export function App() {
     name: string,
     useWorktree: boolean,
     permissionMode: PermissionMode,
+    model: ClaudeModel,
     baseRef?: string,
     linkedIssues?: GithubIssue[],
   ) {
@@ -673,6 +675,7 @@ export function App() {
       path: taskPath,
       useWorktree,
       permissionMode,
+      model,
       linkedIssues: linkedIssueNumbers,
     });
 

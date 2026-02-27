@@ -15,6 +15,7 @@ import type {
   LibraryCommand,
   LibraryMcp,
   PermissionMode,
+  ClaudeModel,
 } from '../shared/types';
 
 export interface ElectronAPI {
@@ -89,6 +90,7 @@ export interface ElectronAPI {
     cols: number;
     rows: number;
     permissionMode?: PermissionMode;
+    model?: ClaudeModel;
     resume?: boolean;
     isDark?: boolean;
     taskId?: string;
