@@ -22,6 +22,8 @@ export interface Project {
   gitBranch: string | null;
   baseRef: string | null;
   defaultMetaprompts: string[] | null;
+  defaultDisabledCommands: string[] | null;
+  defaultDisabledMcps: string[] | null;
   createdAt: string;
   updatedAt: string;
 }

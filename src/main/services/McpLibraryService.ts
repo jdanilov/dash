@@ -192,6 +192,11 @@ export class McpLibraryService {
 
   /**
    * Get MCPs for a specific task with computed enabled status.
+   *
+   * Enabled state priority:
+   * 1. If task has an explicit override (in task_mcps table), use that
+   * 2. Check project's defaultDisabledMcps (tracks which are DISABLED)
+   * 3. Otherwise, use MCP's enabledByDefault setting
    */
   static async getTaskMcps(taskId: string): Promise<
     Array<{
@@ -203,17 +208,56 @@ export class McpLibraryService {
     const taskMcps = await databaseService.getTaskMcps(taskId);
     const taskMcpMap = new Map(taskMcps.map((tm) => [tm.mcpId, tm.enabled]));
 
-    return allMcps.map((mcp) => ({
-      mcp,
-      enabled: taskMcpMap.get(mcp.id) ?? mcp.enabledByDefault,
-    }));
+    // Get project defaults
+    const task = databaseService.getTask(taskId);
+    let projectDefaultDisabledMcps: Set<string> = new Set();
+    if (task) {
+      const project = databaseService.getProject(task.projectId);
+      if (project?.defaultDisabledMcps) {
+        projectDefaultDisabledMcps = new Set(project.defaultDisabledMcps);
+      }
+    }
+
+    return allMcps.map((mcp) => {
+      // Check for task-specific override first
+      const taskOverride = taskMcpMap.get(mcp.id);
+      if (taskOverride !== undefined) {
+        return { mcp, enabled: taskOverride };
+      }
+
+      // Check project defaults (tracks which are DISABLED)
+      if (projectDefaultDisabledMcps.has(mcp.id)) {
+        return { mcp, enabled: false };
+      }
+
+      // Fall back to MCP's enabledByDefault
+      return { mcp, enabled: mcp.enabledByDefault };
+    });
   }
 
   /**
-   * Toggle MCP enabled state for a task
+   * Toggle MCP enabled state for a task.
+   * Also updates the project's defaultDisabledMcps.
    */
   static async toggleMcp(taskId: string, mcpId: string, enabled: boolean): Promise<void> {
     await databaseService.setTaskMcpEnabled(taskId, mcpId, enabled);
+
+    // Update project defaults (tracks which are DISABLED)
+    const task = databaseService.getTask(taskId);
+    if (task) {
+      const project = databaseService.getProject(task.projectId);
+      const currentDisabled = new Set(project?.defaultDisabledMcps ?? []);
+
+      if (enabled) {
+        // Re-enabling: remove from disabled set
+        currentDisabled.delete(mcpId);
+      } else {
+        // Disabling: add to disabled set
+        currentDisabled.add(mcpId);
+      }
+
+      databaseService.updateProjectDefaultDisabledMcps(task.projectId, Array.from(currentDisabled));
+    }
 
     if (this.webContents && !this.webContents.isDestroyed()) {
       this.webContents.send('mcp:toggled', { taskId });

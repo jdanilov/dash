@@ -523,11 +523,13 @@ export class CommandLibraryService {
    * Enabled state priority:
    * 1. If task has an explicit override (in task_commands table), use that
    * 2. For metaprompts: use project's defaultMetaprompts if no task override
-   * 3. Otherwise, use command's enabledByDefault setting
+   * 3. For commands/skills: check project's defaultDisabledCommands
+   * 4. Otherwise, use command's enabledByDefault setting
    *
    * This allows users to:
    * - Set global defaults (enabledByDefault) for all new tasks
-   * - Set project-specific defaults for metaprompts
+   * - Set project-specific defaults for metaprompts (which are enabled)
+   * - Set project-specific defaults for commands/skills (which are disabled)
    * - Override on a per-task basis for specific needs
    */
   static async getTaskCommands(taskId: string): Promise<
@@ -540,13 +542,17 @@ export class CommandLibraryService {
     const taskCommands = await databaseService.getTaskCommands(taskId);
     const taskCommandMap = new Map(taskCommands.map((tc) => [tc.commandId, tc.enabled]));
 
-    // Get project defaults for metaprompts
+    // Get project defaults
     const task = databaseService.getTask(taskId);
     let projectDefaultMetaprompts: Set<string> = new Set();
+    let projectDefaultDisabledCommands: Set<string> = new Set();
     if (task) {
       const project = databaseService.getProject(task.projectId);
       if (project?.defaultMetaprompts) {
         projectDefaultMetaprompts = new Set(project.defaultMetaprompts);
+      }
+      if (project?.defaultDisabledCommands) {
+        projectDefaultDisabledCommands = new Set(project.defaultDisabledCommands);
       }
     }
 
@@ -557,9 +563,17 @@ export class CommandLibraryService {
         return { command, enabled: taskOverride };
       }
 
-      // For metaprompts, check project defaults
+      // For metaprompts, check project defaults (tracks which are ENABLED)
       if (command.type === 'metaprompt' && projectDefaultMetaprompts.size > 0) {
         return { command, enabled: projectDefaultMetaprompts.has(command.id) };
+      }
+
+      // For commands/skills, check project defaults (tracks which are DISABLED)
+      if (
+        (command.type === 'command' || command.type === 'skill') &&
+        projectDefaultDisabledCommands.has(command.id)
+      ) {
+        return { command, enabled: false };
       }
 
       // Fall back to command's enabledByDefault
@@ -570,16 +584,19 @@ export class CommandLibraryService {
   /**
    * Toggle command enabled state for a task.
    * For metaprompts, also updates the project's defaultMetaprompts.
+   * For commands/skills, also updates the project's defaultDisabledCommands.
    */
   static async toggleCommand(taskId: string, commandId: string, enabled: boolean): Promise<void> {
     await databaseService.setTaskCommandEnabled(taskId, commandId, enabled);
 
-    // For metaprompts, update project defaults
     const command = await databaseService.getLibraryCommand(commandId);
-    if (command?.type === 'metaprompt') {
-      const task = databaseService.getTask(taskId);
-      if (task) {
-        const project = databaseService.getProject(task.projectId);
+    const task = databaseService.getTask(taskId);
+
+    if (command && task) {
+      const project = databaseService.getProject(task.projectId);
+
+      if (command.type === 'metaprompt') {
+        // For metaprompts, track which are ENABLED (since they're off by default)
         const currentDefaults = new Set(project?.defaultMetaprompts ?? []);
 
         if (enabled) {
@@ -591,6 +608,22 @@ export class CommandLibraryService {
         databaseService.updateProjectDefaultMetaprompts(
           task.projectId,
           Array.from(currentDefaults),
+        );
+      } else if (command.type === 'command' || command.type === 'skill') {
+        // For commands/skills, track which are DISABLED (since they're on by default)
+        const currentDisabled = new Set(project?.defaultDisabledCommands ?? []);
+
+        if (enabled) {
+          // Re-enabling: remove from disabled set
+          currentDisabled.delete(commandId);
+        } else {
+          // Disabling: add to disabled set
+          currentDisabled.add(commandId);
+        }
+
+        databaseService.updateProjectDefaultDisabledCommands(
+          task.projectId,
+          Array.from(currentDisabled),
         );
       }
     }

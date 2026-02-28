@@ -92,6 +92,30 @@ export class DatabaseService {
       .run();
   }
 
+  static updateProjectDefaultDisabledCommands(projectId: string, commandIds: string[]): void {
+    const db = getDb();
+    const now = new Date().toISOString();
+    db.update(projects)
+      .set({
+        defaultDisabledCommands: JSON.stringify(commandIds),
+        updatedAt: now,
+      })
+      .where(eq(projects.id, projectId))
+      .run();
+  }
+
+  static updateProjectDefaultDisabledMcps(projectId: string, mcpIds: string[]): void {
+    const db = getDb();
+    const now = new Date().toISOString();
+    db.update(projects)
+      .set({
+        defaultDisabledMcps: JSON.stringify(mcpIds),
+        updatedAt: now,
+      })
+      .where(eq(projects.id, projectId))
+      .run();
+  }
+
   static getProject(id: string): Project | null {
     const db = getDb();
     const rows = db.select().from(projects).where(eq(projects.id, id)).all();
@@ -218,16 +242,16 @@ export class DatabaseService {
 
   // ── Mappers ──────────────────────────────────────────────
 
-  private static mapProject(row: typeof projects.$inferSelect): Project {
-    let defaultMetaprompts: string[] | null = null;
-    if (row.defaultMetaprompts) {
-      try {
-        defaultMetaprompts = JSON.parse(row.defaultMetaprompts);
-      } catch {
-        // Corrupted JSON — ignore
-      }
+  private static parseJsonArray(json: string | null | undefined): string[] | null {
+    if (!json) return null;
+    try {
+      return JSON.parse(json);
+    } catch {
+      return null;
     }
+  }
 
+  private static mapProject(row: typeof projects.$inferSelect): Project {
     return {
       id: row.id,
       name: row.name,
@@ -235,7 +259,9 @@ export class DatabaseService {
       gitRemote: row.gitRemote,
       gitBranch: row.gitBranch,
       baseRef: row.baseRef,
-      defaultMetaprompts,
+      defaultMetaprompts: this.parseJsonArray(row.defaultMetaprompts),
+      defaultDisabledCommands: this.parseJsonArray(row.defaultDisabledCommands),
+      defaultDisabledMcps: this.parseJsonArray(row.defaultDisabledMcps),
       createdAt: row.createdAt ?? '',
       updatedAt: row.updatedAt ?? '',
     };
