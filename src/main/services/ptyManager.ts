@@ -371,6 +371,7 @@ export async function startDirectPty(options: {
   if (options.taskId) {
     const { commandLibraryService } = await import('./CommandLibraryService');
     await commandLibraryService.injectCommands(options.taskId, options.cwd);
+    await commandLibraryService.injectMetaprompts(options.taskId, options.cwd);
 
     const { mcpLibraryService } = await import('./McpLibraryService');
     await mcpLibraryService.injectMcps(options.taskId, options.cwd);

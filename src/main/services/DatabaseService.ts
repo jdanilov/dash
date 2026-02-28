@@ -80,6 +80,24 @@ export class DatabaseService {
     db.delete(projects).where(eq(projects.id, id)).run();
   }
 
+  static updateProjectDefaultMetaprompts(projectId: string, metapromptIds: string[]): void {
+    const db = getDb();
+    const now = new Date().toISOString();
+    db.update(projects)
+      .set({
+        defaultMetaprompts: JSON.stringify(metapromptIds),
+        updatedAt: now,
+      })
+      .where(eq(projects.id, projectId))
+      .run();
+  }
+
+  static getProject(id: string): Project | null {
+    const db = getDb();
+    const rows = db.select().from(projects).where(eq(projects.id, id)).all();
+    return rows.length > 0 ? this.mapProject(rows[0]) : null;
+  }
+
   // ── Tasks ────────────────────────────────────────────────
 
   static getTasks(projectId: string): Task[] {
@@ -91,6 +109,12 @@ export class DatabaseService {
       .orderBy(desc(tasks.createdAt))
       .all();
     return rows.map(this.mapTask);
+  }
+
+  static getTask(id: string): Task | null {
+    const db = getDb();
+    const rows = db.select().from(tasks).where(eq(tasks.id, id)).all();
+    return rows.length > 0 ? this.mapTask(rows[0]) : null;
   }
 
   static saveTask(
@@ -195,6 +219,15 @@ export class DatabaseService {
   // ── Mappers ──────────────────────────────────────────────
 
   private static mapProject(row: typeof projects.$inferSelect): Project {
+    let defaultMetaprompts: string[] | null = null;
+    if (row.defaultMetaprompts) {
+      try {
+        defaultMetaprompts = JSON.parse(row.defaultMetaprompts);
+      } catch {
+        // Corrupted JSON — ignore
+      }
+    }
+
     return {
       id: row.id,
       name: row.name,
@@ -202,6 +235,7 @@ export class DatabaseService {
       gitRemote: row.gitRemote,
       gitBranch: row.gitBranch,
       baseRef: row.baseRef,
+      defaultMetaprompts,
       createdAt: row.createdAt ?? '',
       updatedAt: row.updatedAt ?? '',
     };
@@ -353,7 +387,7 @@ export class DatabaseService {
       name: row.name,
       displayName: row.displayName,
       filePath: row.filePath,
-      type: row.type === 'skill' ? 'skill' : 'command',
+      type: row.type === 'skill' ? 'skill' : row.type === 'metaprompt' ? 'metaprompt' : 'command',
       enabledByDefault: row.enabledByDefault ?? true,
       createdAt: row.createdAt ?? '',
       updatedAt: row.updatedAt ?? '',

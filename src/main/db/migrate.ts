@@ -168,5 +168,12 @@ export function runMigrations(): void {
     /* already exists */
   }
 
+  // Migration: Add default_metaprompts column for project-level metaprompt defaults
+  try {
+    rawDb.exec(`ALTER TABLE projects ADD COLUMN default_metaprompts TEXT`);
+  } catch {
+    /* already exists */
+  }
+
   rawDb.pragma('foreign_keys = ON');
 }
