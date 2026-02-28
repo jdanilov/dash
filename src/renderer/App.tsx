@@ -742,37 +742,52 @@ export function App() {
     }
   }
 
-  async function handleDeleteTaskConfirm(options?: {
+  function handleDeleteTaskConfirm(options?: {
     deleteWorktreeDir: boolean;
     deleteLocalBranch: boolean;
     deleteRemoteBranch: boolean;
   }) {
     const task = deleteTaskTarget;
     if (!task) return;
-    setDeleteTaskTarget(null);
 
     const taskProjectId = task.projectId;
 
-    if (task.useWorktree) {
-      const project = projects.find((p) => p.id === taskProjectId);
-      if (project) {
-        await window.electronAPI.worktreeRemove({
-          projectPath: project.path,
-          worktreePath: task.path,
-          branch: task.branch,
-          options,
-        });
-      }
-    }
+    // 1. Close modal immediately
+    setDeleteTaskTarget(null);
 
-    // Clean up shell terminal session
-    sessionRegistry.dispose(`shell:${task.id}`);
+    // 2. Optimistic UI: remove task from state instantly
+    setTasksByProject((prev) => ({
+      ...prev,
+      [taskProjectId]: prev[taskProjectId]?.filter((t) => t.id !== task.id) ?? [],
+    }));
 
-    await window.electronAPI.deleteTask(task.id);
+    // 3. Clear active task if needed
     if (activeTaskId === task.id) {
       setActiveTaskId(null);
     }
-    await loadTasksForProject(taskProjectId);
+
+    // 4. Dispose terminal session (synchronous, fast)
+    sessionRegistry.dispose(`shell:${task.id}`);
+
+    // 5. Fire-and-forget: background cleanup (worktree + DB)
+    (async () => {
+      try {
+        if (task.useWorktree) {
+          const project = projects.find((p) => p.id === taskProjectId);
+          if (project) {
+            await window.electronAPI.worktreeRemove({
+              projectPath: project.path,
+              worktreePath: task.path,
+              branch: task.branch,
+              options,
+            });
+          }
+        }
+        await window.electronAPI.deleteTask(task.id);
+      } catch (err) {
+        console.error('Task cleanup failed:', err);
+      }
+    })();
   }
 
   async function handleArchiveTask(id: string) {
