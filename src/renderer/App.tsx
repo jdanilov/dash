@@ -1198,6 +1198,11 @@ export function App() {
       {deleteTaskTarget && (
         <DeleteTaskModal
           task={deleteTaskTarget}
+          otherTasksCount={
+            (tasksByProject[deleteTaskTarget.projectId] || []).filter(
+              (t) => t.id !== deleteTaskTarget.id && t.path === deleteTaskTarget.path,
+            ).length
+          }
           onClose={() => setDeleteTaskTarget(null)}
           onConfirm={handleDeleteTaskConfirm}
         />

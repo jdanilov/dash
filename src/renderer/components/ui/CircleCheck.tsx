@@ -6,20 +6,30 @@ interface CircleCheckProps {
   onChange: (checked: boolean) => void;
   label: React.ReactNode;
   className?: string;
+  disabled?: boolean;
 }
 
-export function CircleCheck({ checked, onChange, label, className = '' }: CircleCheckProps) {
+export function CircleCheck({
+  checked,
+  onChange,
+  label,
+  className = '',
+  disabled = false,
+}: CircleCheckProps) {
   return (
     <button
       type="button"
-      onClick={() => onChange(!checked)}
-      className={`flex items-center gap-2.5 group text-left ${className}`}
+      onClick={() => !disabled && onChange(!checked)}
+      disabled={disabled}
+      className={`flex items-center gap-2.5 group text-left ${className} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
     >
       <span
         className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 transition-colors duration-150 ${
           checked
             ? 'bg-primary border-primary'
-            : 'border-border bg-transparent group-hover:border-foreground/40'
+            : disabled
+              ? 'border-border/50 bg-transparent'
+              : 'border-border bg-transparent group-hover:border-foreground/40'
         }`}
       >
         {checked && <Check size={10} strokeWidth={3} className="text-primary-foreground" />}
