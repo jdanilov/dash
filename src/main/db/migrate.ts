@@ -175,5 +175,19 @@ export function runMigrations(): void {
     /* already exists */
   }
 
+  // Migration: Add default_disabled_commands column for project-level command/skill defaults
+  try {
+    rawDb.exec(`ALTER TABLE projects ADD COLUMN default_disabled_commands TEXT`);
+  } catch {
+    /* already exists */
+  }
+
+  // Migration: Add default_disabled_mcps column for project-level MCP defaults
+  try {
+    rawDb.exec(`ALTER TABLE projects ADD COLUMN default_disabled_mcps TEXT`);
+  } catch {
+    /* already exists */
+  }
+
   rawDb.pragma('foreign_keys = ON');
 }

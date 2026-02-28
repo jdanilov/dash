@@ -11,6 +11,8 @@ export const projects = sqliteTable(
     gitBranch: text('git_branch'),
     baseRef: text('base_ref'),
     defaultMetaprompts: text('default_metaprompts'), // JSON array of metaprompt IDs
+    defaultDisabledCommands: text('default_disabled_commands'), // JSON array of disabled command/skill IDs
+    defaultDisabledMcps: text('default_disabled_mcps'), // JSON array of disabled MCP IDs
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
     updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
   },
