@@ -11,14 +11,23 @@ interface RemoveWorktreeOptions {
 
 interface DeleteTaskModalProps {
   task: Task;
+  /** Number of other tasks sharing this worktree */
+  otherTasksCount: number;
   onClose: () => void;
   onConfirm: (options?: RemoveWorktreeOptions) => void;
 }
 
-export function DeleteTaskModal({ task, onClose, onConfirm }: DeleteTaskModalProps) {
-  const [deleteWorktreeDir, setDeleteWorktreeDir] = useState(true);
-  const [deleteLocalBranch, setDeleteLocalBranch] = useState(true);
-  const [deleteRemoteBranch, setDeleteRemoteBranch] = useState(true);
+export function DeleteTaskModal({
+  task,
+  otherTasksCount,
+  onClose,
+  onConfirm,
+}: DeleteTaskModalProps) {
+  // If other tasks share this worktree, disable worktree/branch deletion
+  const hasOtherTasks = otherTasksCount > 0;
+  const [deleteWorktreeDir, setDeleteWorktreeDir] = useState(!hasOtherTasks);
+  const [deleteLocalBranch, setDeleteLocalBranch] = useState(!hasOtherTasks);
+  const [deleteRemoteBranch, setDeleteRemoteBranch] = useState(!hasOtherTasks);
 
   function handleConfirm() {
     if (task.useWorktree) {
@@ -59,9 +68,16 @@ export function DeleteTaskModal({ task, onClose, onConfirm }: DeleteTaskModalPro
 
           {task.useWorktree && (
             <div className="flex flex-col gap-2.5 mb-4">
+              {hasOtherTasks && (
+                <p className="text-[12px] text-muted-foreground/70 mb-1">
+                  {otherTasksCount} other task{otherTasksCount > 1 ? 's' : ''} use{' '}
+                  {otherTasksCount === 1 ? 's' : ''} this worktree
+                </p>
+              )}
               <CircleCheck
                 checked={deleteWorktreeDir}
                 onChange={setDeleteWorktreeDir}
+                disabled={hasOtherTasks}
                 label={
                   <>
                     Delete worktree directory{' '}
@@ -74,6 +90,7 @@ export function DeleteTaskModal({ task, onClose, onConfirm }: DeleteTaskModalPro
               <CircleCheck
                 checked={deleteLocalBranch}
                 onChange={setDeleteLocalBranch}
+                disabled={hasOtherTasks}
                 label={
                   <>
                     Delete local branch{' '}
@@ -84,6 +101,7 @@ export function DeleteTaskModal({ task, onClose, onConfirm }: DeleteTaskModalPro
               <CircleCheck
                 checked={deleteRemoteBranch}
                 onChange={setDeleteRemoteBranch}
+                disabled={hasOtherTasks}
                 label={
                   <>
                     Delete remote branch{' '}
