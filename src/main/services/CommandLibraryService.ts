@@ -6,8 +6,9 @@ import type { LibraryCommand, TaskCommand } from '@shared/types';
 import { databaseService } from './DatabaseService';
 
 /**
- * CommandLibraryService manages shared command and skill resources.
+ * CommandLibraryService manages shared command, skill, and metaprompt resources.
  * - Adds commands (single .md files) and skills (directories with SKILL.md)
+ * - Adds metaprompts (single .md files that get injected into CLAUDE.md)
  * - Supports bulk import from .claude directories
  * - Watches resource files for changes
  * - Injects enabled resources into task directories
@@ -88,11 +89,12 @@ export class CommandLibraryService {
         result.errors.push({ path: filePath, error: addResult.error || 'Unknown error' });
       }
     } else if (stats.isDirectory()) {
-      // Directory - check if it's a skill, .claude directory, or commands/skills directory
+      // Directory - check if it's a skill, .claude directory, or commands/skills/metaprompts directory
       const skillMdPath = path.join(filePath, 'SKILL.md');
       const skillMdPathLower = path.join(filePath, 'skill.md');
       const claudeCommandsDir = path.join(filePath, 'commands');
       const claudeSkillsDir = path.join(filePath, 'skills');
+      const claudeMetapromptsDir = path.join(filePath, 'metaprompts');
       const dirName = path.basename(filePath);
 
       if (fs.existsSync(skillMdPath) || fs.existsSync(skillMdPathLower)) {
@@ -104,7 +106,11 @@ export class CommandLibraryService {
         } else {
           result.errors.push({ path: filePath, error: addResult.error || 'Unknown error' });
         }
-      } else if (fs.existsSync(claudeCommandsDir) || fs.existsSync(claudeSkillsDir)) {
+      } else if (
+        fs.existsSync(claudeCommandsDir) ||
+        fs.existsSync(claudeSkillsDir) ||
+        fs.existsSync(claudeMetapromptsDir)
+      ) {
         // It's a .claude directory - bulk import
         const bulkResult = await this.bulkImportClaudeDir(filePath);
         result.added += bulkResult.added;
@@ -122,11 +128,17 @@ export class CommandLibraryService {
         result.added += bulkResult.added;
         result.updated += bulkResult.updated;
         result.errors.push(...bulkResult.errors);
+      } else if (dirName === 'metaprompts') {
+        // Direct metaprompts directory - import all .md files as metaprompts
+        const bulkResult = await this.bulkImportMetapromptsDir(filePath);
+        result.added += bulkResult.added;
+        result.updated += bulkResult.updated;
+        result.errors.push(...bulkResult.errors);
       } else {
         result.errors.push({
           path: filePath,
           error:
-            'Directory must contain SKILL.md (for skills) or commands/skills subdirectories (for bulk import)',
+            'Directory must contain SKILL.md (for skills) or commands/skills/metaprompts subdirectories (for bulk import)',
         });
       }
     }
@@ -227,8 +239,55 @@ export class CommandLibraryService {
   }
 
   /**
+   * Add a single metaprompt from .md file
+   * Metaprompts are OFF by default (less intrusive than commands)
+   */
+  private static async addMetaprompt(
+    filePath: string,
+  ): Promise<{ success: boolean; updated: boolean; error?: string }> {
+    try {
+      const fileName = path.basename(filePath, '.md');
+      const displayName = fileName; // No slash for metaprompts
+      const absolutePath = path.resolve(filePath);
+
+      // Check if metaprompt already exists at this path
+      const existing = await databaseService.getLibraryCommandByPath(absolutePath);
+
+      if (existing) {
+        // Update existing
+        await databaseService.updateLibraryCommand(existing.id, {
+          name: fileName,
+          displayName,
+          filePath: absolutePath,
+          type: 'metaprompt',
+        });
+        return { success: true, updated: true };
+      } else {
+        // Add new - metaprompts are OFF by default
+        await databaseService.createLibraryCommand({
+          name: fileName,
+          displayName,
+          filePath: absolutePath,
+          type: 'metaprompt',
+          enabledByDefault: false,
+        });
+
+        // Start watching new file
+        this.watchFile(absolutePath);
+        return { success: true, updated: false };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        updated: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  /**
    * Bulk import from .claude directory
-   * Scans commands/*.md and skills/* directories
+   * Scans commands/*.md, skills/*, and metaprompts/*.md directories
    */
   private static async bulkImportClaudeDir(claudeDir: string): Promise<{
     added: number;
@@ -293,6 +352,31 @@ export class CommandLibraryService {
         result.errors.push({
           path: skillsDir,
           error: `Failed to scan skills: ${error instanceof Error ? error.message : String(error)}`,
+        });
+      }
+    }
+
+    // Import metaprompts from metaprompts/
+    const metapromptsDir = path.join(claudeDir, 'metaprompts');
+    if (fs.existsSync(metapromptsDir)) {
+      try {
+        const files = fs.readdirSync(metapromptsDir);
+        for (const file of files) {
+          if (file.endsWith('.md')) {
+            const filePath = path.join(metapromptsDir, file);
+            const addResult = await this.addMetaprompt(filePath);
+            if (addResult.success) {
+              if (addResult.updated) result.updated++;
+              else result.added++;
+            } else {
+              result.errors.push({ path: filePath, error: addResult.error || 'Unknown error' });
+            }
+          }
+        }
+      } catch (error) {
+        result.errors.push({
+          path: metapromptsDir,
+          error: `Failed to scan metaprompts: ${error instanceof Error ? error.message : String(error)}`,
         });
       }
     }
@@ -381,11 +465,56 @@ export class CommandLibraryService {
   }
 
   /**
-   * Get all library commands (sorted alphabetically)
+   * Bulk import from a metaprompts directory
+   * Scans all .md files in the directory
+   */
+  private static async bulkImportMetapromptsDir(metapromptsDir: string): Promise<{
+    added: number;
+    updated: number;
+    errors: Array<{ path: string; error: string }>;
+  }> {
+    const result = { added: 0, updated: 0, errors: [] as Array<{ path: string; error: string }> };
+
+    try {
+      const files = fs.readdirSync(metapromptsDir);
+      for (const file of files) {
+        if (file.endsWith('.md')) {
+          const filePath = path.join(metapromptsDir, file);
+          const addResult = await this.addMetaprompt(filePath);
+          if (addResult.success) {
+            if (addResult.updated) result.updated++;
+            else result.added++;
+          } else {
+            result.errors.push({ path: filePath, error: addResult.error || 'Unknown error' });
+          }
+        }
+      }
+    } catch (error) {
+      result.errors.push({
+        path: metapromptsDir,
+        error: `Failed to scan metaprompts: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
+
+    return result;
+  }
+
+  /**
+   * Get all library commands (sorted by type then alphabetically)
+   * Type order: commands → metaprompts → skills → mcps
    */
   static async getAllCommands(): Promise<LibraryCommand[]> {
     const commands = await databaseService.getAllLibraryCommands();
-    return commands.sort((a, b) => a.name.localeCompare(b.name));
+    const typeOrder: Record<string, number> = {
+      command: 0,
+      metaprompt: 1,
+      skill: 2,
+    };
+    return commands.sort((a, b) => {
+      const typeCompare = (typeOrder[a.type] ?? 99) - (typeOrder[b.type] ?? 99);
+      if (typeCompare !== 0) return typeCompare;
+      return a.name.localeCompare(b.name);
+    });
   }
 
   /**
@@ -393,10 +522,12 @@ export class CommandLibraryService {
    *
    * Enabled state priority:
    * 1. If task has an explicit override (in task_commands table), use that
-   * 2. Otherwise, use command's enabledByDefault setting
+   * 2. For metaprompts: use project's defaultMetaprompts if no task override
+   * 3. Otherwise, use command's enabledByDefault setting
    *
    * This allows users to:
    * - Set global defaults (enabledByDefault) for all new tasks
+   * - Set project-specific defaults for metaprompts
    * - Override on a per-task basis for specific needs
    */
   static async getTaskCommands(taskId: string): Promise<
@@ -409,17 +540,60 @@ export class CommandLibraryService {
     const taskCommands = await databaseService.getTaskCommands(taskId);
     const taskCommandMap = new Map(taskCommands.map((tc) => [tc.commandId, tc.enabled]));
 
-    return allCommands.map((command) => ({
-      command,
-      enabled: taskCommandMap.get(command.id) ?? command.enabledByDefault,
-    }));
+    // Get project defaults for metaprompts
+    const task = databaseService.getTask(taskId);
+    let projectDefaultMetaprompts: Set<string> = new Set();
+    if (task) {
+      const project = databaseService.getProject(task.projectId);
+      if (project?.defaultMetaprompts) {
+        projectDefaultMetaprompts = new Set(project.defaultMetaprompts);
+      }
+    }
+
+    return allCommands.map((command) => {
+      // Check for task-specific override first
+      const taskOverride = taskCommandMap.get(command.id);
+      if (taskOverride !== undefined) {
+        return { command, enabled: taskOverride };
+      }
+
+      // For metaprompts, check project defaults
+      if (command.type === 'metaprompt' && projectDefaultMetaprompts.size > 0) {
+        return { command, enabled: projectDefaultMetaprompts.has(command.id) };
+      }
+
+      // Fall back to command's enabledByDefault
+      return { command, enabled: command.enabledByDefault };
+    });
   }
 
   /**
-   * Toggle command enabled state for a task
+   * Toggle command enabled state for a task.
+   * For metaprompts, also updates the project's defaultMetaprompts.
    */
   static async toggleCommand(taskId: string, commandId: string, enabled: boolean): Promise<void> {
     await databaseService.setTaskCommandEnabled(taskId, commandId, enabled);
+
+    // For metaprompts, update project defaults
+    const command = await databaseService.getLibraryCommand(commandId);
+    if (command?.type === 'metaprompt') {
+      const task = databaseService.getTask(taskId);
+      if (task) {
+        const project = databaseService.getProject(task.projectId);
+        const currentDefaults = new Set(project?.defaultMetaprompts ?? []);
+
+        if (enabled) {
+          currentDefaults.add(commandId);
+        } else {
+          currentDefaults.delete(commandId);
+        }
+
+        databaseService.updateProjectDefaultMetaprompts(
+          task.projectId,
+          Array.from(currentDefaults),
+        );
+      }
+    }
 
     // Notify renderer that commands changed for this task
     if (this.webContents && !this.webContents.isDestroyed()) {
@@ -578,6 +752,123 @@ export class CommandLibraryService {
 
     if (errors.length > 0) {
       throw new Error(`Resource injection had ${errors.length} error(s): ${errors.join('; ')}`);
+    }
+  }
+
+  /**
+   * Inject enabled metaprompts into project's CLAUDE.md file.
+   * Detection order: CLAUDE.md → claude.md → .claude/CLAUDE.md → .claude/claude.md
+   * If none found, creates CLAUDE.md in project root.
+   *
+   * Uses a backup file (.claude/.claude-md-backup) to preserve original content
+   * and prevent duplication on repeated injections.
+   */
+  static async injectMetaprompts(taskId: string, cwd: string): Promise<void> {
+    const taskCommands = await this.getTaskCommands(taskId);
+    const enabledMetaprompts = taskCommands
+      .filter((tc) => tc.enabled && tc.command.type === 'metaprompt')
+      .sort((a, b) => a.command.name.localeCompare(b.command.name)); // Alphabetical order
+
+    const backupPath = path.join(cwd, '.claude', '.claude-md-backup');
+
+    // Find existing CLAUDE.md file
+    const candidates = [
+      path.join(cwd, 'CLAUDE.md'),
+      path.join(cwd, 'claude.md'),
+      path.join(cwd, '.claude', 'CLAUDE.md'),
+      path.join(cwd, '.claude', 'claude.md'),
+    ];
+
+    let claudeMdPath: string | null = null;
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate)) {
+        claudeMdPath = candidate;
+        break;
+      }
+    }
+
+    // If no CLAUDE.md exists, use project root
+    if (!claudeMdPath) {
+      claudeMdPath = path.join(cwd, 'CLAUDE.md');
+    }
+
+    // Get original content: prefer backup if exists, otherwise read current file
+    let originalContent = '';
+    if (fs.existsSync(backupPath)) {
+      // Backup exists - use it as the source of truth for original content
+      try {
+        originalContent = fs.readFileSync(backupPath, 'utf-8');
+      } catch (err) {
+        console.error(`[CommandLibraryService] Failed to read backup ${backupPath}:`, err);
+      }
+    } else if (fs.existsSync(claudeMdPath)) {
+      // No backup yet - read current file and create backup
+      try {
+        originalContent = fs.readFileSync(claudeMdPath, 'utf-8');
+        // Create backup directory if needed
+        const backupDir = path.dirname(backupPath);
+        if (!fs.existsSync(backupDir)) {
+          fs.mkdirSync(backupDir, { recursive: true });
+        }
+        fs.writeFileSync(backupPath, originalContent, 'utf-8');
+      } catch (err) {
+        console.error(`[CommandLibraryService] Failed to backup ${claudeMdPath}:`, err);
+      }
+    }
+
+    // If no metaprompts enabled, restore original content and clean up
+    if (enabledMetaprompts.length === 0) {
+      if (fs.existsSync(backupPath)) {
+        // Restore original content
+        try {
+          fs.writeFileSync(claudeMdPath, originalContent, 'utf-8');
+          fs.unlinkSync(backupPath);
+        } catch (err) {
+          console.error(`[CommandLibraryService] Failed to restore original CLAUDE.md:`, err);
+        }
+      }
+      return;
+    }
+
+    // Read and compose metaprompt content
+    const metapromptContents: string[] = [];
+    for (const { command } of enabledMetaprompts) {
+      try {
+        if (!fs.existsSync(command.filePath)) {
+          console.error(`[CommandLibraryService] Metaprompt file not found: ${command.filePath}`);
+          continue;
+        }
+        const content = fs.readFileSync(command.filePath, 'utf-8');
+        metapromptContents.push(content.trim());
+      } catch (err) {
+        console.error(`[CommandLibraryService] Failed to read metaprompt ${command.name}:`, err);
+      }
+    }
+
+    // Compose final content: original + metaprompts (two blank lines between each)
+    const parts: string[] = [];
+    if (originalContent.trim()) {
+      parts.push(originalContent.trim());
+    }
+    for (const content of metapromptContents) {
+      parts.push(content);
+    }
+
+    const finalContent = parts.join('\n\n\n') + '\n';
+
+    // Ensure parent directory exists
+    const parentDir = path.dirname(claudeMdPath);
+    if (!fs.existsSync(parentDir)) {
+      fs.mkdirSync(parentDir, { recursive: true });
+    }
+
+    // Write composed CLAUDE.md
+    try {
+      fs.writeFileSync(claudeMdPath, finalContent, 'utf-8');
+    } catch (err) {
+      throw new Error(
+        `Failed to write CLAUDE.md: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 

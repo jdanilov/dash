@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Plus, Library, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { CommandItem } from './CommandItem';
+import { MetapromptItem } from './MetapromptItem';
 import { McpItem } from './McpItem';
 import type { LibraryCommand, LibraryMcp } from '@shared/types';
 
@@ -88,6 +89,11 @@ export function LibraryPanel({ currentTaskId, taskPath }: LibraryPanelProps) {
     };
   }, [currentTaskId, taskCommands, loadTaskCommands]);
 
+  // Separate by type for rendering (already sorted by service)
+  const commands = taskCommands.filter((tc) => tc.command.type === 'command');
+  const metaprompts = taskCommands.filter((tc) => tc.command.type === 'metaprompt');
+  const skills = taskCommands.filter((tc) => tc.command.type === 'skill');
+
   // Listen for MCP changes
   useEffect(() => {
     const unsubMcpToggled = window.electronAPI.onMcpToggled((data) => {
@@ -112,15 +118,16 @@ export function LibraryPanel({ currentTaskId, taskPath }: LibraryPanelProps) {
     };
   }, [currentTaskId, loadTaskMcps]);
 
-  const handleAddCommands = async () => {
+  const handleAddResources = async () => {
     setLoading(true);
+    setShowAddMenu(false);
     try {
       const result = await window.electronAPI.commandLibrary.addCommands();
       if (result.success && result.data) {
         const { added, updated, errors } = result.data;
 
         if (errors.length > 0) {
-          console.error('Failed to add some commands:', errors);
+          console.error('Failed to add some resources:', errors);
           errors.forEach((err) => {
             toast.error(`Failed to add: ${err.path}`, {
               description: err.error,
@@ -130,24 +137,24 @@ export function LibraryPanel({ currentTaskId, taskPath }: LibraryPanelProps) {
 
         if (added > 0 || updated > 0) {
           await loadTaskCommands();
-          // Mark needs restart since we added/updated commands
+          // Mark needs restart since we added/updated resources
           setNeedsRestart(true);
 
           const parts: string[] = [];
           if (added > 0) parts.push(`${added} added`);
           if (updated > 0) parts.push(`${updated} updated`);
-          toast.success(`Commands ${parts.join(', ')}`);
+          toast.success(`Resources ${parts.join(', ')}`);
         } else if (errors.length === 0) {
-          toast.info('No commands were selected');
+          toast.info('No resources were selected');
         }
       } else {
-        toast.error('Failed to add commands', {
+        toast.error('Failed to add resources', {
           description: result.error,
         });
       }
     } catch (error) {
-      console.error('Failed to add commands:', error);
-      toast.error('Failed to add commands', {
+      console.error('Failed to add resources:', error);
+      toast.error('Failed to add resources', {
         description: error instanceof Error ? error.message : String(error),
       });
     } finally {
@@ -432,22 +439,22 @@ export function LibraryPanel({ currentTaskId, taskPath }: LibraryPanelProps) {
               onMouseLeave={() => setShowAddMenu(false)}
             >
               <button
-                onClick={() => {
-                  setShowAddMenu(false);
-                  handleAddCommands();
-                }}
+                onClick={handleAddResources}
                 className="w-full px-3 py-1.5 text-left text-xs text-foreground hover:bg-accent/50 transition-colors"
               >
                 Import .claude/commands
               </button>
               <button
-                onClick={() => {
-                  setShowAddMenu(false);
-                  handleAddCommands();
-                }}
+                onClick={handleAddResources}
                 className="w-full px-3 py-1.5 text-left text-xs text-foreground hover:bg-accent/50 transition-colors"
               >
                 Import .claude/skills
+              </button>
+              <button
+                onClick={handleAddResources}
+                className="w-full px-3 py-1.5 text-left text-xs text-foreground hover:bg-accent/50 transition-colors"
+              >
+                Import .claude/metaprompts
               </button>
               <button
                 onClick={handleAddMcp}
@@ -486,8 +493,8 @@ export function LibraryPanel({ currentTaskId, taskPath }: LibraryPanelProps) {
           </div>
         ) : (
           <div className="px-2 pt-1">
-            {/* Commands & Skills */}
-            {taskCommands.map((tc) => (
+            {/* Commands */}
+            {commands.map((tc) => (
               <CommandItem
                 key={tc.command.id}
                 command={tc.command}
@@ -496,9 +503,33 @@ export function LibraryPanel({ currentTaskId, taskPath }: LibraryPanelProps) {
                 onToggleDefault={(enabled) => handleToggleDefault(tc.command.id, enabled)}
                 onEdit={() => handleEditCommand(tc.command.filePath)}
                 onDelete={() => handleDeleteCommand(tc.command.id)}
-                onInvoke={
-                  tc.command.type === 'command' ? () => handleInvokeCommand(tc.command) : undefined
-                }
+                onInvoke={() => handleInvokeCommand(tc.command)}
+              />
+            ))}
+
+            {/* Metaprompts */}
+            {metaprompts.map((tc) => (
+              <MetapromptItem
+                key={tc.command.id}
+                metaprompt={tc.command}
+                enabled={tc.enabled}
+                onToggle={(enabled) => handleToggleCommand(tc.command.id, enabled)}
+                onToggleDefault={(enabled) => handleToggleDefault(tc.command.id, enabled)}
+                onEdit={() => handleEditCommand(tc.command.filePath)}
+                onDelete={() => handleDeleteCommand(tc.command.id)}
+              />
+            ))}
+
+            {/* Skills */}
+            {skills.map((tc) => (
+              <CommandItem
+                key={tc.command.id}
+                command={tc.command}
+                enabled={tc.enabled}
+                onToggle={(enabled) => handleToggleCommand(tc.command.id, enabled)}
+                onToggleDefault={(enabled) => handleToggleDefault(tc.command.id, enabled)}
+                onEdit={() => handleEditCommand(tc.command.filePath)}
+                onDelete={() => handleDeleteCommand(tc.command.id)}
               />
             ))}
 

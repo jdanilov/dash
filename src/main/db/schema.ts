@@ -10,6 +10,7 @@ export const projects = sqliteTable(
     gitRemote: text('git_remote'),
     gitBranch: text('git_branch'),
     baseRef: text('base_ref'),
+    defaultMetaprompts: text('default_metaprompts'), // JSON array of metaprompt IDs
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
     updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
   },
@@ -71,7 +72,7 @@ export const libraryCommands = sqliteTable(
     name: text('name').notNull(),
     displayName: text('display_name').notNull(),
     filePath: text('file_path').notNull(),
-    type: text('type', { enum: ['command', 'skill'] })
+    type: text('type', { enum: ['command', 'skill', 'metaprompt'] })
       .notNull()
       .default('command'),
     enabledByDefault: integer('enabled_by_default', { mode: 'boolean' }).default(true),

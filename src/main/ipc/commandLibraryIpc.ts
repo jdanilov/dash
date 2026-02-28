@@ -160,14 +160,16 @@ export function registerCommandLibraryIpc(): void {
     },
   );
 
-  // Coordinated restart: reinject commands then signal restart needed
+  // Coordinated restart: reinject commands and metaprompts then signal restart needed
   // The actual PTY restart is handled by the renderer (SessionRegistry)
   ipcMain.handle(
     'commandLibrary:prepareRestart',
     async (_event, args: { taskId: string; cwd: string }) => {
       try {
-        // Re-inject commands with current enabled state
+        // Re-inject commands and skills with current enabled state
         await commandLibraryService.injectCommands(args.taskId, args.cwd);
+        // Re-inject metaprompts into CLAUDE.md
+        await commandLibraryService.injectMetaprompts(args.taskId, args.cwd);
         return { success: true };
       } catch (error) {
         return { success: false, error: String(error) };

@@ -21,6 +21,7 @@ export interface Project {
   gitRemote: string | null;
   gitBranch: string | null;
   baseRef: string | null;
+  defaultMetaprompts: string[] | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -227,7 +228,7 @@ export interface LibraryCommand {
   name: string;
   displayName: string;
   filePath: string;
-  type: 'command' | 'skill';
+  type: 'command' | 'skill' | 'metaprompt';
   enabledByDefault: boolean;
   createdAt: string;
   updatedAt: string;
